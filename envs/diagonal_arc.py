@@ -570,11 +570,11 @@ class DiagonalARCEnv(AbstractARCEnv):
     
     def create_operations(self):
         # ops = [rotate_left, gen_rotate(3), gen_flip("H"), vertical_flip]
-        ops = [gen_rotate(3), gen_rotate(1), gen_flip("H"), gen_flip("V")]
-        ops += [reset_sel(gen_color(i)) for i in range(10)]
-        ops += [gen_move(d=1)]
-        ops += [reset_sel(gen_copy("I")), reset_sel(gen_copy("O")) , reset_sel(gen_paste(paste_blank=True))]
-        ops += [self.submit]
+        ops = [gen_rotate(3), gen_rotate(1), gen_flip("H"), gen_flip("V")] #왼쪽, 오른쪽, 수평, 수직
+        ops += [reset_sel(gen_color(i)) for i in [4,6,8,9]] # 노란색, 분홍색, 하늘색, 갈색
+        ops += [gen_move(d=1)] # 아래 이동
+        ops += [reset_sel(gen_copy("O")) , reset_sel(gen_paste(paste_blank=True))] # grid 복사, 붙여넣기
+        ops += [self.submit] # 제출
         return ops
 
     def render_ansi(self):
