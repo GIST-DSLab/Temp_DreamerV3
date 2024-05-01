@@ -205,5 +205,10 @@ class Damy:
     def step(self, action):
         return lambda: self._env.step(action)
 
-    def reset(self):
-        return lambda: self._env.reset()
+    # 원본 reset
+    # def reset(self, options=None):
+    #     return lambda: self._env.reset(options=options)
+
+    # arcle에 options를 위해서 아래와 같이 수정
+    def reset(self, options=None):
+        return lambda: self._env.reset(options=options)

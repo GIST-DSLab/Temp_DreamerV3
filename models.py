@@ -4,9 +4,34 @@ from torch import nn
 
 import networks
 import tools
+import gymnasium
+
+import numpy as np
 
 to_np = lambda x: x.detach().cpu().numpy()
 
+def convert_dict_to_tensor(k, v, device):
+    processed_list_of_dicts = []
+    for sublist in v:
+        processed_sublist = []
+        for item in sublist:
+            processed_dict = {sub_k: torch.tensor(sub_v, dtype=torch.float32).to(device) for sub_k, sub_v in item.items()}
+            processed_sublist.append(processed_dict)
+        processed_list_of_dicts.append(processed_sublist)
+
+    return processed_list_of_dicts
+
+def make_dictionary(obs_space):
+    temp_dict = dict()
+    for k, v in obs_space.spaces.items():
+        if type(v) == gymnasium.spaces.dict.Dict:
+            for k2, v2 in v.items():
+                if not k in temp_dict.keys():
+                    temp_dict[k] = dict()
+                temp_dict[k][k2] = tuple(v2.shape)
+        else:
+            temp_dict[k] = tuple(v.shape)
+    return temp_dict
 
 class RewardEMA:
     """running mean and std"""
@@ -32,7 +57,7 @@ class WorldModel(nn.Module):
         self._step = step
         self._use_amp = True if config.precision == 16 else False
         self._config = config
-        shapes = {k: tuple(v.shape) for k, v in obs_space.spaces.items()}
+        shapes = make_dictionary(obs_space) # {k: tuple(v.shape) for k, v in obs_space.spaces.items()}
         self.encoder = networks.MultiEncoder(shapes, **config.encoder)
         self.embed_size = self.encoder.outdim
         self.dynamics = networks.RSSM(
@@ -51,6 +76,7 @@ class WorldModel(nn.Module):
             config.num_actions,
             self.embed_size,
             config.device,
+            use_bbox=config.use_bbox
         )
         self.heads = nn.ModuleDict()
         if config.dyn_discrete:
@@ -110,7 +136,15 @@ class WorldModel(nn.Module):
         # image (batch_size, batch_length, h, w, ch)
         # reward (batch_size, batch_length)
         # discount (batch_size, batch_length)
+
         data = self.preprocess(data)
+        # data['grid'] = torch.from_numpy(data['grid'].astype(np.int32)).to(self._config.device)
+        # data['is_terminal'] = torch.from_numpy(data['is_terminal'].astype(np.bool_)).to(self._config.device)
+        # data['is_first'] = torch.from_numpy(data['is_first'].astype(np.bool_)).to(self._config.device)
+        # data['reward'] = torch.from_numpy(data['reward'].astype(np.float32)).to(self._config.device)
+        # data['discount'] = torch.from_numpy(data['discount'].astype(np.float32)).to(self._config.device)
+        # data['action'] = convert_dict_to_tensor('action', data['action'], self._config.device)
+        # data['logprob'] = convert_dict_to_tensor('logprob', data['logprob'], self._config.device)
 
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -173,7 +207,9 @@ class WorldModel(nn.Module):
     # this function is called during both rollout and training
     def preprocess(self, obs):
         obs = obs.copy()
-        obs["image"] = torch.Tensor(obs["image"]) / 255.0
+        if 'image' in obs.keys():
+            obs["image"] = torch.Tensor(obs["image"]) / 255.0
+
         if "discount" in obs:
             obs["discount"] *= self._config.discount
             # (batch_size, batch_length) -> (batch_size, batch_length, 1)
@@ -183,27 +219,61 @@ class WorldModel(nn.Module):
         # 'is_terminal' is necesarry to train cont_head
         assert "is_terminal" in obs
         obs["cont"] = torch.Tensor(1.0 - obs["is_terminal"]).unsqueeze(-1)
-        obs = {k: torch.Tensor(v).to(self._config.device) for k, v in obs.items()}
+        # obs = {k: torch.Tensor(v).to(self._config.device) for k, v in obs.items()}
+        for k, v in obs.items():
+            if k == "action" or k == 'logprob':
+                processed_list_of_dicts = []
+                for sublist in v:
+                    processed_sublist = []
+                    if type(sublist[0]) == dict:
+                        for item in sublist:
+                            processed_dict = {sub_k: torch.tensor(sub_v, dtype=torch.float32).to(self._config.device) for sub_k, sub_v in item.items()}
+                            processed_sublist.append(processed_dict)
+                    else:
+                        break
+                    processed_list_of_dicts.append(processed_sublist)
+                obs[k] = processed_list_of_dicts if processed_list_of_dicts != [] else torch.Tensor(v).to(self._config.device)
+            else:
+                obs[k] = torch.Tensor(v).to(self._config.device)
         return obs
 
     def video_pred(self, data):
         data = self.preprocess(data)
         embed = self.encoder(data)
 
+        # states, _ = self.dynamics.observe(
+        #     embed[:6, :5], data["action"][:6, :5], data["is_first"][:6, :5]
+        # )
+        
+        # recon = self.heads["decoder"](self.dynamics.get_feat(states))["image"].mode()[
+        #     :6
+        # ]
+        # reward_post = self.heads["reward"](self.dynamics.get_feat(states)).mode()[:6]
+        # init = {k: v[:, -1] for k, v in states.items()}
+        # # TODO 아래 data['action'][:6, 5:] 부분이 왜 이와 같은 인덱스 슬라이싱하는지 생각해보기
+        # prior = self.dynamics.imagine_with_action(data["action"][:6, 5:], init)
+        # openl = self.heads["decoder"](self.dynamics.get_feat(prior))["image"].mode()
+        # reward_prior = self.heads["reward"](self.dynamics.get_feat(prior)).mode()
+        # # observed image is given until 5 steps
+        # model = torch.cat([recon[:, :5], openl], 1)
+        # truth = data["image"][:6]
+        # model = model
+        # error = (model - truth + 1.0) / 2.0
+
         states, _ = self.dynamics.observe(
-            embed[:6, :5], data["action"][:6, :5], data["is_first"][:6, :5]
+            embed, data["action"], data["is_first"]
         )
-        recon = self.heads["decoder"](self.dynamics.get_feat(states))["image"].mode()[
-            :6
-        ]
-        reward_post = self.heads["reward"](self.dynamics.get_feat(states)).mode()[:6]
+        
+        recon = self.heads["decoder"](self.dynamics.get_feat(states))["image"].mode()
+        reward_post = self.heads["reward"](self.dynamics.get_feat(states)).mode()
         init = {k: v[:, -1] for k, v in states.items()}
-        prior = self.dynamics.imagine_with_action(data["action"][:6, 5:], init)
+        # TODO 아래 data['action'][:6, 5:] 부분이 왜 이와 같은 인덱스 슬라이싱하는지 생각해보기
+        prior = self.dynamics.imagine_with_action(data["action"], init)
         openl = self.heads["decoder"](self.dynamics.get_feat(prior))["image"].mode()
         reward_prior = self.heads["reward"](self.dynamics.get_feat(prior)).mode()
         # observed image is given until 5 steps
-        model = torch.cat([recon[:, :5], openl], 1)
-        truth = data["image"][:6]
+        model = torch.cat([recon, openl], 1)
+        truth = data["image"]
         model = model
         error = (model - truth + 1.0) / 2.0
 
@@ -236,6 +306,7 @@ class ImagBehavior(nn.Module):
             unimix_ratio=config.actor["unimix_ratio"],
             outscale=config.actor["outscale"],
             name="Actor",
+            use_bbox=config.use_bbox,
         )
         self.value = networks.MLP(
             feat_size,
@@ -294,7 +365,10 @@ class ImagBehavior(nn.Module):
                     start, self.actor, self._config.imag_horizon
                 )
                 reward = objective(imag_feat, imag_state, imag_action)
-                actor_ent = self.actor(imag_feat).entropy()
+                if type(self.actor(imag_feat)) == dict:
+                    actor_ent = sum([self.actor(imag_feat)[k].entropy()for k in self.actor(imag_feat)])
+                else:
+                    actor_ent = self.actor(imag_feat).entropy()
                 state_ent = self._world_model.dynamics.get_dist(imag_state).entropy()
                 # this target is not scaled by ema or sym_log.
                 target, weights, base = self._compute_target(
@@ -350,7 +424,10 @@ class ImagBehavior(nn.Module):
             state, _, _ = prev
             feat = dynamics.get_feat(state)
             inp = feat.detach()
-            action = policy(inp).sample()
+            if type(policy(inp)) == dict:
+                action = {k: policy(inp)[k].sample() for k in policy(inp).keys()}
+            else:
+                action = policy(inp).sample()
             succ = dynamics.img_step(state, action)
             return succ, feat, action
 

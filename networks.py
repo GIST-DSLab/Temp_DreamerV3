@@ -9,6 +9,8 @@ from torch import distributions as torchd
 
 import tools
 
+from functools import reduce
+
 
 class RSSM(nn.Module):
     def __init__(
@@ -28,6 +30,7 @@ class RSSM(nn.Module):
         num_actions=None,
         embed=None,
         device=None,
+        use_bbox=False,
     ):
         super(RSSM, self).__init__()
         self._stoch = stoch
@@ -44,6 +47,14 @@ class RSSM(nn.Module):
         self._num_actions = num_actions
         self._embed = embed
         self._device = device
+        '''
+        use_bbox를 사용할 때와 아닐때는 구별해서 network를 선언해야 될 것 같음.
+        bbox를 사용하면 y1,x1,y2,x2 등의 좌 상단과 그에 따른 길이를 예측하는 모델 한 개와 action을 선택할 모델 1개가 필요함.
+        '''
+
+        num_actions = sum([value for _, value in self._num_actions.items()]) if type(self._num_actions) == dict else self._num_actions
+        self._num_actions = num_actions
+
 
         inp_layers = []
         if self._discrete:
@@ -127,7 +138,25 @@ class RSSM(nn.Module):
     def observe(self, embed, action, is_first, state=None):
         swap = lambda x: x.permute([1, 0] + list(range(2, len(x.shape))))
         # (batch, time, ch) -> (time, batch, ch)
-        embed, action, is_first = swap(embed), swap(action), swap(is_first)
+        # bbox때문에 밑에 코드 추가함
+        # if type(is_first) == np.ndarray:
+        #     is_first = torch.from_numpy(is_first)
+        #     action = torch.stack([torch.cat((torch.from_numpy(action[i, 0]), torch.from_numpy(action[i,1]))) for i in range(action.shape[0])]).to('cuda')
+        #     for i in range(action.shape[0]):
+        #         action[i, :].dtype = np.int32
+
+        # 원본
+        # embed, action, is_first = swap(embed), swap(action), swap(is_first)
+
+        # bbox때문에 아래와 같이 수정함.
+        embed = swap(embed)
+        is_first = swap(is_first)
+        
+        try:
+            action = swap(action)
+        except:
+            action = [[action[j][i] for j in range(len(action))] for i in range(len(action[0]))]
+
         # prev_state[0] means selecting posterior of return(posterior, prior) from obs_step
         post, prior = tools.static_scan(
             lambda prev_state, prev_act, embed, is_first: self.obs_step(
@@ -173,6 +202,7 @@ class RSSM(nn.Module):
 
     def obs_step(self, prev_state, prev_action, embed, is_first, sample=True):
         # initialize all prev_state
+        is_first = torch.from_numpy(is_first) if type(is_first) == np.ndarray else is_first
         if prev_state == None or torch.sum(is_first) == len(is_first):
             prev_state = self.initial(len(is_first))
             prev_action = torch.zeros((len(is_first), self._num_actions)).to(
@@ -213,7 +243,25 @@ class RSSM(nn.Module):
             # (batch, stoch, discrete_num) -> (batch, stoch * discrete_num)
             prev_stoch = prev_stoch.reshape(shape)
         # (batch, stoch * discrete_num) -> (batch, stoch * discrete_num + action)
-        x = torch.cat([prev_stoch, prev_action], -1)
+        if isinstance(prev_action, dict):
+            temp_list = [prev_stoch]
+            temp_list += [v for k, v in prev_action.items()]
+            x = torch.cat(temp_list, -1)
+        elif isinstance(prev_action[0], dict):
+            operations = [action['operation'] for action in prev_action]
+            y1 = [action['y1'] for action in prev_action]
+            x1 = [action['x1'] for action in prev_action]
+            y2 = [action['y2'] for action in prev_action]
+            x2 = [action['x2'] for action in prev_action]
+
+            temp = [prev_stoch]
+            for target in [operations, y1, x1, y2, x2]:
+                temp1 = torch.stack(target)  # [batch_size, operation_dim]
+                temp.append(temp1.view(len(temp1), -1))
+
+            x = torch.cat(temp, -1)
+        else:
+            x = torch.cat([prev_stoch, prev_action], -1)
         # (batch, stoch * discrete_num + action, embed) -> (batch, hidden)
         x = self._img_in_layers(x)
         for _ in range(self._rec_depth):  # rec depth is not correctly implemented
@@ -306,7 +354,7 @@ class MultiEncoder(nn.Module):
         symlog_inputs,
     ):
         super(MultiEncoder, self).__init__()
-        excluded = ("is_first", "is_last", "is_terminal", "reward")
+        excluded = ("is_first", "is_last", "is_terminal", "reward", 'obs_states', 'grid_dim')
         shapes = {
             k: v
             for k, v in shapes.items()
@@ -332,7 +380,10 @@ class MultiEncoder(nn.Module):
             )
             self.outdim += self._cnn.outdim
         if self.mlp_shapes:
-            input_size = sum([sum(v) for v in self.mlp_shapes.values()])
+            # 원본 코드 - CNN 잘 동작함
+            # input_size = sum([sum(v) for v in self.mlp_shapes.values()])
+            # 에러 때문에 수정한 코드 - MLP
+            input_size = 900 if 'grid' in self.mlp_shapes else sum([reduce(lambda x, y: x * y, v) for v in self.mlp_shapes.values()])
             self._mlp = MLP(
                 input_size,
                 None,
@@ -351,8 +402,31 @@ class MultiEncoder(nn.Module):
             inputs = torch.cat([obs[k] for k in self.cnn_shapes], -1)
             outputs.append(self._cnn(inputs))
         if self.mlp_shapes:
-            inputs = torch.cat([obs[k] for k in self.mlp_shapes], -1)
-            outputs.append(self._mlp(inputs))
+            # 원본 코드 - CNN
+            # inputs = torch.cat([obs[k] for k in self.mlp_shapes], -1)
+
+            # 에러 때문에 아래 코드와 같이 수정함. - MLP
+            # if len(self.mlp_shapes) == 1 and 'grid' in obs:
+            #     if len(obs['grid'].shape) == 4:
+            #         obs['grid'] = obs['grid'].astype(np.uint8)
+            #         inputs = torch.from_numpy(obs['grid']).reshape(obs['grid'].shape[0],obs['grid'].shape[1] , -1)
+            #     else:
+            #         inputs = torch.from_numpy(obs['grid']).reshape(-1, 900)
+            # if len(obs) != 4:
+            #     # inputs = torch.cat([obs[k].reshape(30, 30 , -1) for k in self.mlp_shapes], -1)
+            #     inputs = torch.cat([obs[k].reshape(obs[k].shape[0],obs[k].shape[1] , -1) for k in self.mlp_shapes], -1)
+            # else:
+            #     inputs = torch.cat([obs[k].reshape(obs[k].shape[0], -1) for k in self.mlp_shapes], -1)
+
+
+            # bbox
+            if len(obs) == 8:
+                # print(len(obs['trials_remain']))
+                inputs = torch.cat([obs[k].view(obs[k].size(0), obs[k].size(1), -1) for k in self.mlp_shapes], -1)
+            else:
+                inputs = torch.cat([obs[k].view(obs[k].size(0), -1) for k in self.mlp_shapes], -1)
+
+            outputs.append(self._mlp(inputs.to('cuda')))
         outputs = torch.cat(outputs, -1)
         return outputs
 
@@ -377,7 +451,7 @@ class MultiDecoder(nn.Module):
         outscale,
     ):
         super(MultiDecoder, self).__init__()
-        excluded = ("is_first", "is_last", "is_terminal")
+        excluded = ("is_first", "is_last", "is_terminal", 'grid_dim')
         shapes = {k: v for k, v in shapes.items() if k not in excluded}
         self.cnn_shapes = {
             k: v for k, v in shapes.items() if len(v) == 3 and re.match(cnn_keys, k)
@@ -605,6 +679,7 @@ class MLP(nn.Module):
         symlog_inputs=False,
         device="cuda",
         name="NoName",
+        use_bbox=False,
     ):
         super(MLP, self).__init__()
         self._shape = (shape,) if isinstance(shape, int) else shape
@@ -635,10 +710,20 @@ class MLP(nn.Module):
                 inp_dim = units
         self.layers.apply(tools.weight_init)
 
+        if use_bbox:
+            self._shape = self._shape[0]
+
+        # 원본
+        # if isinstance(self._shape, dict)
+
+        # bbox 때문에 아래와 같이 수정함.
+
         if isinstance(self._shape, dict):
             self.mean_layer = nn.ModuleDict()
             for name, shape in self._shape.items():
-                self.mean_layer[name] = nn.Linear(inp_dim, np.prod(shape))
+                # if name == 'grid':
+                #     print(1)
+                self.mean_layer[name] = nn.Linear(inp_dim, np.prod(shape) if name != 'grid' else 900) 
             self.mean_layer.apply(tools.uniform_weight_init(outscale))
             if self._std == "learned":
                 assert dist in ("tanh_normal", "normal", "trunc_normal", "huber"), dist

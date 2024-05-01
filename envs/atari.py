@@ -5,7 +5,8 @@ import numpy as np
 class Atari:
     LOCK = None
     metadata = {}
-
+    
+    # TODO 필요함
     def __init__(
         self,
         name,
@@ -67,6 +68,7 @@ class Atari:
         self._step = 0
         self.reward_range = [-np.inf, np.inf]
 
+    # TODO 필요함
     @property
     def observation_space(self):
         img_shape = self._size + ((1,) if self._gray else (3,))
@@ -76,12 +78,14 @@ class Atari:
             }
         )
 
+    # TODO 필요함
     @property
     def action_space(self):
         space = self._env.action_space
         space.discrete = True
         return space
 
+    # TODO 필요함
     def step(self, action):
         # if action['reset'] or self._done:
         #   with self.LOCK:
@@ -117,6 +121,7 @@ class Atari:
             is_terminal=dead or over,
         )
 
+    # TODO 필요함
     def reset(self):
         self._env.reset()
         if self._noops:
@@ -133,6 +138,7 @@ class Atari:
         obs, reward, is_terminal, _ = self._obs(0.0, is_first=True)
         return obs
 
+    # TODO 필요함
     def _obs(self, reward, is_first=False, is_last=False, is_terminal=False):
         np.maximum(self._buffer[0], self._buffer[1], out=self._buffer[0])
         image = self._buffer[0]
@@ -156,8 +162,10 @@ class Atari:
             {},
         )
 
+    # TODO 필요함
     def _screen(self, array):
         self._ale.getScreenRGB2(array)
 
+    # TODO 필요함
     def close(self):
         return self._env.close()

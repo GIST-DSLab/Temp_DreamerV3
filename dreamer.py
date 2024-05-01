@@ -21,9 +21,10 @@ import torch
 from torch import nn
 from torch import distributions as torchd
 
+import wandb
+import gymnasium
 
 to_np = lambda x: x.detach().cpu().numpy()
-
 
 class Dreamer(nn.Module):
     def __init__(self, obs_space, act_space, config, logger, dataset):
@@ -81,6 +82,7 @@ class Dreamer(nn.Module):
         if training:
             self._step += len(reset)
             self._logger.step = self._config.action_repeat * self._step
+        # TODO policy_output이 이산적으로 나와야하는데 그렇지 않음 - 해당 문제 고치기
         return policy_output, state
 
     def _policy(self, obs, state, training):
@@ -89,23 +91,54 @@ class Dreamer(nn.Module):
         else:
             latent, action = state
         obs = self._wm.preprocess(obs)
+
         embed = self._wm.encoder(obs)
         latent, _ = self._wm.dynamics.obs_step(latent, action, embed, obs["is_first"])
+        # 원본
+        # if self._config.eval_state_mean:
+        #     latent["stoch"] = latent["mean"]
+        # feat = self._wm.dynamics.get_feat(latent)
+        # if not training:
+        #     actor = self._task_behavior.actor(feat)
+        #     action = actor.mode()
+        # elif self._should_expl(self._step):
+        #     actor = self._expl_behavior.actor(feat)
+        #     action = actor.sample()
+        # else:
+        #     actor = self._task_behavior.actor(feat)
+        #     action = actor.sample()
+
+        # bbox때문에 아래와 같이 수정함.
         if self._config.eval_state_mean:
             latent["stoch"] = latent["mean"]
         feat = self._wm.dynamics.get_feat(latent)
         if not training:
             actor = self._task_behavior.actor(feat)
-            action = actor.mode()
+            if self._config.use_bbox:
+                action = {k: actor[k].mode() for k in actor.keys()}
+            else:
+                action = actor.mode()
         elif self._should_expl(self._step):
             actor = self._expl_behavior.actor(feat)
-            action = actor.sample()
+            if type(actor) == dict:
+                action = {k: actor[k].sample() for k in actor.keys()}
+            else:
+                action = actor.sample()
         else:
             actor = self._task_behavior.actor(feat)
             action = actor.sample()
-        logprob = actor.log_prob(action)
+
+        # 위에 부분에서 action의 shape 1, 2500인데 왜 이런지 이해 못함.
+        if self._config.use_bbox:
+            logprob = {k: actor[k].log_prob(action[k]) for k in actor.keys()}
+        else:
+            logprob = actor.log_prob(action)
         latent = {k: v.detach() for k, v in latent.items()}
-        action = action.detach()
+
+        if self._config.use_bbox:
+            action = {k: action[k].detach() for k in actor.keys()}
+        else:
+            action = action.detach()
         if self._config.actor["dist"] == "onehot_gumble":
             action = torch.one_hot(
                 torch.argmax(action, dim=-1), self._config.num_actions
@@ -193,6 +226,26 @@ def make_env(config, mode, id):
 
         env = minecraft.make_env(task, size=config.size, break_speed=config.break_speed)
         env = wrappers.OneHotAction(env)
+    elif suite == "verysimple":
+        from envs.simple_arc import SimpleARCEnv
+
+        # 여기 부분 하드코딩 되어 있음
+        env = SimpleARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 1, render_mode ="ansi", render_size= None)
+        env = wrappers.OneHotAction(env)
+    elif suite == "diagonal":
+        from envs.diagonal_arc import DiagonalARCEnv
+
+        # 여기 부분 하드코딩 되어 있음
+        env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        env = wrappers.OneHotAction(env)
+    elif suite == "bbox-diagonal":
+        from envs.bbox_diagonal_arc import BBoxDiagonalARCEnv
+        from arcle.wrappers import BBoxWrapper
+
+        # 여기 부분 하드코딩 되어 있음
+        env = BBoxDiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        # env = wrappers.NormalizeActions(env)
+        env = BBoxWrapper(env)
     else:
         raise NotImplementedError(suite)
     env = wrappers.TimeLimit(env, config.time_limit)
@@ -204,6 +257,9 @@ def make_env(config, mode, id):
 
 
 def main(config):
+    wandb.init(project=config.wandb_project_name)
+    wandb.config.update(config)
+
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:
         tools.enable_deterministic_run()
@@ -245,7 +301,15 @@ def main(config):
         eval_envs = [Damy(env) for env in eval_envs]
     acts = train_envs[0].action_space
     print("Action Space", acts)
-    config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
+
+    # 원본
+    # config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
+
+    # ARCLE BBOX 때문에 아래와 같이 수정함 
+    if not config.use_bbox:
+        config.num_actions = acts.n if hasattr(acts, "n") else acts.shape[0]
+    else:
+        config.num_actions = {k: a.n if hasattr(a, "n") else acts.shape[0] for a, k in zip(list(acts), ['y1','x1','y2','x2','operation'])}
 
     state = None
     if not config.offline_traindir:
@@ -255,6 +319,30 @@ def main(config):
             random_actor = tools.OneHotDist(
                 torch.zeros(config.num_actions).repeat(config.envs, 1)
             )
+        # 아래는 ARC에서 action이 tuple인 경우 때문에 추가함.
+        elif type(acts) == gymnasium.spaces.tuple.Tuple:
+            acts_config = [a.n for a in acts]
+            if config.use_bbox:
+                random_actor_list = {k: 
+                tools.OneHotDist(
+                    torch.zeros(target_acts).repeat(config.envs, 1)
+                    )
+                    for target_acts, k in zip(acts_config, ['y1','x1','y2','x2','operation']) 
+                }
+            else:
+                random_actor_list = [
+                tools.OneHotDist(
+                    torch.zeros(target_acts).repeat(config.envs, 1)
+                    )
+                    for target_acts in acts_config]
+            
+            # random_actor_list = [
+            #     torchd.independent.Independent(
+            #         torchd.uniform.Uniform(
+            #             torch.tensor(0.0).repeat(config.envs, 1),
+            #             torch.tensor(float(target_acts)).repeat(config.envs, 1),
+            #         ), 1)
+            #     for target_acts in acts_config]
         else:
             random_actor = torchd.independent.Independent(
                 torchd.uniform.Uniform(
@@ -265,9 +353,22 @@ def main(config):
             )
 
         def random_agent(o, d, s):
-            action = random_actor.sample()
-            logprob = random_actor.log_prob(action)
+            # 원본
+            # action = random_actor.sample()
+            # logprob = random_actor.log_prob(action)
+            # return {"action": action, "logprob": logprob}, None
+
+            # arcle bbox로 인해 아래와 같이 바꿈.
+            if not config.use_bbox:
+                action = random_actor.sample()
+                logprob = random_actor.log_prob(action)
+            else:
+                action = {k: random_actor_list[k].sample() for k in random_actor_list.keys()}
+                logprob = {k: random_actor_list[k].log_prob(action[k]) for k in random_actor_list.keys()}
+                # logprob = [random_actor_list[i].log_prob(action[i]) for i in range(len(random_actor_list))]
             return {"action": action, "logprob": logprob}, None
+                
+
 
         state = tools.simulate(
             random_agent,
@@ -277,12 +378,13 @@ def main(config):
             logger,
             limit=config.dataset_size,
             steps=prefill,
+            use_bbox=True if config.use_bbox else False
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
 
     print("Simulate agent.")
-    train_dataset = make_dataset(train_eps, config)
+    train_dataset = make_dataset(train_eps, config) # -> next(train_dataset) -> (batch_size, batch_length) -> (batch, time)
     eval_dataset = make_dataset(eval_eps, config)
     agent = Dreamer(
         train_envs[0].observation_space,
@@ -291,6 +393,7 @@ def main(config):
         logger,
         train_dataset,
     ).to(config.device)
+    # wandb.watch(agent)
     agent.requires_grad_(requires_grad=False)
     if (logdir / "latest.pt").exists():
         checkpoint = torch.load(logdir / "latest.pt")
@@ -312,6 +415,8 @@ def main(config):
                 logger,
                 is_eval=True,
                 episodes=config.eval_episode_num,
+                option = {'adaptation': True},
+                use_bbox=True if config.use_bbox else False,
             )
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
@@ -326,6 +431,7 @@ def main(config):
             limit=config.dataset_size,
             steps=config.eval_every,
             state=state,
+            use_bbox=True if config.use_bbox else False,
         )
         items_to_save = {
             "agent_state_dict": agent.state_dict(),

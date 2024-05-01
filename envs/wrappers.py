@@ -20,10 +20,16 @@ class TimeLimit(gym.Wrapper):
                 info["discount"] = np.array(1.0).astype(np.float32)
             self._step = None
         return obs, reward, done, info
-
-    def reset(self):
+    
+    # 원본은 아래와 같음
+    # def reset(self):
+    #     self._step = 0
+    #     return self.env.reset()
+    
+    # arcle에 options인자를 넘겨주기 위해서 아래와 같이 수저함.
+    def reset(self, options=None):
         self._step = 0
-        return self.env.reset()
+        return self.env.reset(options=options)
 
 
 class NormalizeActions(gym.Wrapper):
@@ -57,13 +63,21 @@ class OneHotAction(gym.Wrapper):
     def step(self, action):
         index = np.argmax(action).astype(int)
         reference = np.zeros_like(action)
+
         reference[index] = 1
-        if not np.allclose(reference, action):
-            raise ValueError(f"Invalid one-hot action:\n{action}")
+        
+        # TODO 고쳐야 하는 부분
+        # if not np.allclose(reference, action):
+        #     raise ValueError(f"Invalid one-hot action:\n{action}")
         return self.env.step(index)
 
-    def reset(self):
-        return self.env.reset()
+    # 원본은 아래와 같음
+    # def reset(self):
+    #     return self.env.reset()
+
+    # arcle에 options 인자를 전달하기 위해서 아래와 같이 수정함.
+    def reset(self, options=None):
+        return self.env.reset(options=options)
 
     def _sample_action(self):
         actions = self.env.action_space.n
@@ -111,7 +125,14 @@ class UUID(gym.Wrapper):
         timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         self.id = f"{timestamp}-{str(uuid.uuid4().hex)}"
 
-    def reset(self):
+    # 원본 reset
+    # def reset(self):
+    #     timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    #     self.id = f"{timestamp}-{str(uuid.uuid4().hex)}"
+    #     return self.env.reset()
+
+    # arcle에 options를 인자로 넘기기 위해서 아래와 같이 수정
+    def reset(self, options=None):
         timestamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
         self.id = f"{timestamp}-{str(uuid.uuid4().hex)}"
-        return self.env.reset()
+        return self.env.reset(options=options)

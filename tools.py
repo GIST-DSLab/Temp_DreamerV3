@@ -16,6 +16,8 @@ from torch.nn import functional as F
 from torch import distributions as torchd
 from torch.utils.tensorboard import SummaryWriter
 
+import wandb
+
 
 to_np = lambda x: x.detach().cpu().numpy()
 
@@ -83,6 +85,7 @@ class Logger:
         print(f"[{step}]", " / ".join(f"{k} {v:.1f}" for k, v in scalars))
         with (self._logdir / "metrics.jsonl").open("a") as f:
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
+            wandb.log({"step": step, **dict(scalars)})
         for name, value in scalars:
             if "/" not in name:
                 self._writer.add_scalar("scalars/" + name, value, step)
@@ -94,9 +97,11 @@ class Logger:
             name = name if isinstance(name, str) else name.decode("utf-8")
             if np.issubdtype(value.dtype, np.floating):
                 value = np.clip(255 * value, 0, 255).astype(np.uint8)
-            B, T, H, W, C = value.shape
-            value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
-            self._writer.add_video(name, value, step, 16)
+            
+            # 원래 원본은 아래임 - CNN
+            # B, T, H, W, C = value.shape
+            # value = value.transpose(1, 4, 2, 0, 3).reshape((1, T, C, H, B * W))
+            # self._writer.add_video(name, value, step, 16)
 
         self._writer.flush()
         self._scalars = {}
@@ -136,6 +141,8 @@ def simulate(
     steps=0,
     episodes=0,
     state=None,
+    option=None,
+    use_bbox=False,
 ):
     # initialize or unpack simulation state
     if state is None:
@@ -151,7 +158,8 @@ def simulate(
         # reset envs if necessary
         if done.any():
             indices = [index for index, d in enumerate(done) if d]
-            results = [envs[i].reset() for i in indices]
+            # TODO arcle에 reset이 options라는 것을 통해서 특정 분기점을 통과하므로 아래와 같이 option을 넘겨줄 수 있게끔 수정함.
+            results = [envs[i].reset(options=option) for i in indices]
             results = [r() for r in results]
             for index, result in zip(indices, results):
                 t = result.copy()
@@ -166,16 +174,76 @@ def simulate(
         # step agents
         obs = {k: np.stack([o[k] for o in obs]) for k in obs[0] if "log_" not in k}
         action, agent_state = agent(obs, done, agent_state)
-        if isinstance(action, dict):
+        # 원본 isinstance(action, dict)은 아래와 같음 
+        # if isinstance(action, dict):
+        
+        # BBox도 고려해야 되서 elif 로 수정함.
+        if isinstance(action['action'], list):
+            for i in range(len(envs)):
+                temp_action_list = []
+                temp_logprob_list = []
+                temp_action = {}
+                total_action_list = []
+                for j in range(len(action['action'])):
+                    for k in action:
+                        if k != 'logprob':
+                            temp_action_list.append(np.argmax(np.array(action[k][j][i].detach().cpu())))
+                        else:
+                            temp_logprob_list.append(np.array(action[k][j].detach().cpu()))
+
+                temp_action['action'] = temp_action_list
+                temp_action['logprob'] = temp_logprob_list
+                total_action_list.append(temp_action)
+            action = None
+            action = np.array(total_action_list, dtype=object)
+        elif isinstance(action, dict):
+            if use_bbox:
+            # if isinstance(action[0], dict):
+                for i in range(len(envs)):
+                    temp_action_list = []
+                    temp_logprob_list = []
+                    temp_action = {}
+                    total_action_list = []
+                    for j in action['action']:
+                        for k in action:
+                            if k != 'logprob':
+                                temp_action_list.append(np.argmax(np.array(action[k][j][i].detach().cpu())))
+                            else:
+                                temp_logprob_list.append(np.array(action[k][j].detach().cpu()))
+
+                    temp_action['action'] = temp_action_list
+                    temp_action['logprob'] = temp_logprob_list
+                    total_action_list.append(temp_action)
+                action_list = None
+                action_list = np.array(total_action_list, dtype=object)
+            
             action = [
-                {k: np.array(action[k][i].detach().cpu()) for k in action}
+                # 원본은 아래 -  CNN, no BBOX
+                # {k: np.array(action[k][i].detach().cpu()) for k in action}
+
+                # 에러가 발생해서 아래과 같이 수정함. - MLP, no BBOX
+                {k: np.array(action[k][i].detach().cpu()) if k != 'logprob' else np.array(action[k].detach().cpu()) for k in action} 
+
+                if not type(action['action']) == dict
+
+                else
+
+                # bbox를 사용하는 경우
+                {k: 
+                    {k2: np.array(action[k][k2].detach().cpu()) for k2 in action[k].keys()}
+                    for k in action
+                }
+
                 for i in range(len(envs))
             ]
         else:
             action = np.array(action)
-        assert len(action) == len(envs)
+        assert len(action) == len(envs) or use_bbox
         # step envs
-        results = [e.step(a) for e, a in zip(envs, action)]
+        if use_bbox:
+            results = [e.step(a) for e, a in zip(envs, action_list)]
+        else:
+            results = [e.step(a) for e, a in zip(envs, action)]
         results = [r() for r in results]
         obs, reward, done = zip(*[p[:3] for p in results])
         obs = list(obs)
@@ -205,7 +273,7 @@ def simulate(
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
                 length = len(cache[envs[i].id]["reward"]) - 1
                 score = float(np.array(cache[envs[i].id]["reward"]).sum())
-                video = cache[envs[i].id]["image"]
+                video = cache[envs[i].id]["image"] if 'image' in cache[envs[i].id] else cache[envs[i].id]["grid"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):
                     if "log_" in key:
@@ -255,6 +323,8 @@ def add_to_cache(cache, id, transition):
         for key, val in transition.items():
             cache[id][key] = [convert(val)]
     else:
+        # 원본은 아래와 같음
+        '''
         for key, val in transition.items():
             if key not in cache[id]:
                 # fill missing data(action, etc.) at second time
@@ -262,6 +332,28 @@ def add_to_cache(cache, id, transition):
                 cache[id][key].append(convert(val))
             else:
                 cache[id][key].append(convert(val))
+        '''
+        for key, val in transition.items():
+            if key not in cache[id]:
+                # fill missing data(action, etc.) at second time
+                if (key == 'action' or key == 'logprob') and type(val) == dict:
+                    for k, v in val.items():
+                        cache[id][key] = [{k: convert(0 * v) for k, v in val.items()}]
+                        cache[id][key].append({k: convert(v) for k, v in val.items()})
+                        #cache[id][key].append(convert(val))
+                else:
+                    cache[id][key] = [convert(0 * val)]
+                    cache[id][key].append(convert(val))
+
+            else:
+                if (key == 'action' or key == 'logprob') and type(val) == dict:
+                    for k, v in val.items():
+                        cache[id][key] = [{k: convert(0 * v) for k, v in val.items()}]
+                        cache[id][key].append({k: convert(v) for k, v in val.items()})
+                        #cache[id][key].append(convert(val))
+                else:
+                    cache[id][key] = [convert(0 * val)]
+                    cache[id][key].append(convert(val))
 
 
 def erase_over_episodes(cache, dataset_size):
@@ -299,6 +391,10 @@ def save_episodes(directory, episodes):
         length = len(episode["reward"])
         filename = directory / f"{filename}-{length}.npz"
         with io.BytesIO() as f1:
+            # BBox 형태때문에 아래와 같이 if문 추가함.
+            # if type(episode['grid']) == list:
+            #     temp_episode = {target_key: np.array(episode[target_key], dtype=object) for target_key in episode.keys()}
+            #     episode = temp_episode
             np.savez_compressed(f1, **episode)
             f1.seek(0)
             with filename.open("wb") as f2:
@@ -315,8 +411,38 @@ def from_generator(generator, batch_size):
         for key in batch[0].keys():
             data[key] = []
             for i in range(batch_size):
+                # 원본
                 data[key].append(batch[i][key])
+
+                # bbox 때문에 아래와 같이 수정
+                # if key == 'grid':
+                #     target_type = np.uint8
+                # elif key == 'is_terminal':
+                #     target_type = np.bool_
+                # elif key == 'is_first':
+                #     target_type = np.bool_
+                # elif key == 'reward':
+                #     target_type = np.float32
+                # elif key == 'discount':
+                #     target_type = np.float32
+                # elif key == 'action':
+                #     target_type = np.int32
+                # elif key == 'logprob':
+                #     target_type = np.float32
+
+                # if key in ['action', 'logprob']:
+                #     # generateor(self.dataset)에서 자꾸 텅빈 array가 들어있어서 concat시 shape 맞지 않는 문제 발생
+                #     temp = np.array([target for target in batch[i]['action']])
+                #     data[key].append(temp)
+                # elif key == 'grid':
+                #     data[key].append(np.array(batch[i][key]))
+                # else:
+                #     data[key].append(batch[i][key].astype(target_type))
+            # 원본
             data[key] = np.stack(data[key], 0)
+
+            # BBox 때문에 아래와 같이 object타입으로 변경
+            # data[key] = np.stack(data[key], 0, dtype=object)
         yield data
 
 
@@ -369,7 +495,7 @@ def load_episodes(directory, limit=None, reverse=True):
         for filename in reversed(sorted(directory.glob("*.npz"))):
             try:
                 with filename.open("rb") as f:
-                    episode = np.load(f)
+                    episode = np.load(f, allow_pickle=True)
                     episode = {k: episode[k] for k in episode.keys()}
             except Exception as e:
                 print(f"Could not load episode: {e}")
@@ -383,7 +509,7 @@ def load_episodes(directory, limit=None, reverse=True):
         for filename in sorted(directory.glob("*.npz")):
             try:
                 with filename.open("rb") as f:
-                    episode = np.load(f)
+                    episode = np.load(f, allow_pickle=True)
                     episode = {k: episode[k] for k in episode.keys()}
             except Exception as e:
                 print(f"Could not load episode: {e}")
@@ -543,6 +669,9 @@ class SymlogDist:
         return symexp(self._mode)
 
     def log_prob(self, value):
+        # 아래 self._mode는 오류(에러) 때문에 추가한 부분 - CNN
+        self._mode = self._mode.reshape(value.shape)
+
         assert self._mode.shape == value.shape
         if self._dist == "mse":
             distance = (self._mode - symlog(value)) ** 2.0
@@ -795,7 +924,14 @@ def args_type(default):
 
 def static_scan(fn, inputs, start):
     last = start
-    indices = range(inputs[0].shape[0])
+    # 원본
+    # indices = range(inputs[0].shape[0])
+
+    try:
+        indices = range(inputs[0].shape[0]) if not type(inputs[0]) == list else range(inputs[0][0][0].shape[0]) 
+    except:
+        indices = range(np.array(inputs[0]).shape[0])
+
     flag = True
     for index in indices:
         inp = lambda x: (_input[x] for _input in inputs)
@@ -937,11 +1073,19 @@ def uniform_weight_init(given_scale):
 
 
 def tensorstats(tensor, prefix=None):
-    metrics = {
-        "mean": to_np(torch.mean(tensor)),
-        "std": to_np(torch.std(tensor)),
-        "min": to_np(torch.min(tensor)),
-        "max": to_np(torch.max(tensor)),
+    if type(tensor) == dict:
+        metrics = {
+            "mean": sum(to_np(torch.mean(tensor[k])) for k in tensor.keys()),
+            "std": sum(to_np(torch.std(tensor[k])) for k in tensor.keys()),
+            "min": sum(to_np(torch.min(tensor[k])) for k in tensor.keys()),
+            "max": sum(to_np(torch.max(tensor[k])) for k in tensor.keys()),
+        }
+    else:
+        metrics = {
+            "mean": to_np(torch.mean(tensor)),
+            "std": to_np(torch.std(tensor)),
+            "min": to_np(torch.min(tensor)),
+            "max": to_np(torch.max(tensor)),
     }
     if prefix:
         metrics = {f"{prefix}_{k}": v for k, v in metrics.items()}
