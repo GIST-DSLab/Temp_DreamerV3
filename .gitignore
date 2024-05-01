@@ -137,3 +137,7 @@ dmypy.json
 # VScode
 .vscode/*
 wandb/*
+
+*.zip
+*.deb
+*.tar.gz
