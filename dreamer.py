@@ -233,10 +233,10 @@ def make_env(config, mode, id):
         env = SimpleARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 1, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "diagonal":
-        from envs.diagonal_arc import DiagonalARCEnv
+        from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        # 여기 부분 하드코딩 되어 있음
-        env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
         from envs.bbox_diagonal_arc import BBoxDiagonalARCEnv
@@ -368,8 +368,6 @@ def main(config):
                 # logprob = [random_actor_list[i].log_prob(action[i]) for i in range(len(random_actor_list))]
             return {"action": action, "logprob": logprob}, None
                 
-
-
         state = tools.simulate(
             random_agent,
             train_envs,
@@ -378,7 +376,8 @@ def main(config):
             logger,
             limit=config.dataset_size,
             steps=prefill,
-            use_bbox=True if config.use_bbox else False
+            use_bbox=True if config.use_bbox else False,
+            option = {'adaptation': True}
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
@@ -415,7 +414,7 @@ def main(config):
                 logger,
                 is_eval=True,
                 episodes=config.eval_episode_num,
-                option = {'adaptation': True},
+                option = {'adaptation': False},
                 use_bbox=True if config.use_bbox else False,
             )
             if config.video_pred_log:
@@ -431,6 +430,7 @@ def main(config):
             limit=config.dataset_size,
             steps=config.eval_every,
             state=state,
+            option = {'adaptation': True},
             use_bbox=True if config.use_bbox else False,
         )
         items_to_save = {
