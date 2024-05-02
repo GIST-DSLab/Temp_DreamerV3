@@ -59,15 +59,24 @@ class EntireSelectionLoader(ARCLoader):
                     continue
         return dat
 
+def chang_color_permute(state):
+    temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
+    permute_color = np.random.choice([i for i in range(0,10)], 10, replace=False).tolist()
+    for i in range(3):
+        for j in range(3):
+            temp_state[i][j] = permute_color[temp_state[i][j]]
+    return temp_state
+
+
 def rotate_left(state):
-        temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
-        rotate_state = []
-        for  i in range(3):
-            temp = []
-            for j in range(3):
-                temp.append(temp_state[j][2-i])
-            rotate_state.append(temp)
-        return rotate_state
+    temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
+    rotate_state = []
+    for  i in range(3):
+        temp = []
+        for j in range(3):
+            temp.append(temp_state[j][2-i])
+        rotate_state.append(temp)
+    return rotate_state
 
 # rotate_right function is a clockwise rotation about the given state.
 def rotate_right(state):
@@ -487,7 +496,11 @@ class DiagonalARCEnv(AbstractARCEnv):
                 render_mode = None, 
                 render_size = None,
                 log_dir = 'log',
-                few_shot = True,):
+                few_shot = True,
+                num_func = 4,
+                color_permute = False,
+                ):
+        self.num_func = num_func
         super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
         self._size = img_size
         self._resize = 'pillow'
@@ -498,6 +511,8 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.eval_list = None
         self.few_shot = few_shot
         self.log_dir = log_dir
+        self.color_permute = color_permute
+
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
@@ -603,9 +618,13 @@ class DiagonalARCEnv(AbstractARCEnv):
                 self.input_ = ex_in[self.subprob_index]
                 self.answer = ex_out[self.subprob_index]
             else:
-                self.input_ = self.train_list[0][self.train_count] # ex_in
-                self.answer = self.train_list[1][self.train_count] # ex_out
-                self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
+                if self.color_permute:
+                    self.input_ = chang_color_permute(ex_in[self.subprob_index])
+                    self.answer = chang_color_permute(ex_out[self.subprob_index])
+                else:
+                    self.input_ = self.train_list[0][self.train_count] # ex_in
+                    self.answer = self.train_list[1][self.train_count] # ex_out
+                    self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
 
         # # # TODO test 시점에서 아래가 어떤변수로 조건문이 통과되는지 확인하기
         # else:
@@ -646,9 +665,10 @@ class DiagonalARCEnv(AbstractARCEnv):
     def create_operations(self):
         # ops = [rotate_left, rotate_right, horizontal_flip, vertical_flip]
         ops = [gen_rotate(1), gen_rotate(3), gen_flip("H"), gen_flip("V")] #왼쪽, 오른쪽, 수평, 수직
-        ops += [reset_sel(gen_color(i)) for i in [4,6,8,9]] # 노란색, 분홍색, 하늘색, 갈색
-        ops += [gen_move(d=1)] # 아래 이동
-        ops += [reset_sel(gen_copy("O")) , reset_sel(gen_paste(paste_blank=True))] # grid 복사, 붙여넣기
+        if self.num_func == 11:
+            ops += [reset_sel(gen_color(i)) for i in [4,6,8,9]] # 노란색, 분홍색, 하늘색, 갈색
+            ops += [gen_move(d=1)] # 아래 이동
+            ops += [reset_sel(gen_copy("O")) , reset_sel(gen_paste(paste_blank=True))] # grid 복사, 붙여넣기
         # ops += [self.submit] # 제출
         return ops
 

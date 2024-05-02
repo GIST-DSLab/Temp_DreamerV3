@@ -210,13 +210,15 @@ diagonal_arc:
   eval_every: 1e2
   log_every: 1e3 # log를 찍는 텀, 1e1은 10번에 1번씩 찍음
   # batch_size가 이해가 잘 안됨. batch_size가 episode 개수를 뜻하면 train_episodes ...
-  batch_size: 1
+  batch_size: 32
   parallel: False # 병렬 처리, 이것을 사용하면 wandb init이 2번 됨.
   eval_episode_num: 1e3  # eval할 episode의 개수
   wandb_project_name: "IJCAI-DreamerV3"
   prefill: 2_000
   task_index: 179 # 53, 129, 380, 87, 140, 339, 322
   few_shot: True
+  num_func: 4
+  color_permute: False
 
 bbox-diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
