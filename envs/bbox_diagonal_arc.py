@@ -275,7 +275,9 @@ class BBoxDiagonalARCEnv(AbstractARCEnv):
                 max_step = 2,
                 max_trial = -1,
                 render_mode = None, 
-                render_size = None):
+                render_size = None,
+                few_shot=True
+                ):
         super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
         self._size = img_size
         self._resize = 'pillow'
@@ -283,6 +285,7 @@ class BBoxDiagonalARCEnv(AbstractARCEnv):
         # self.observation_space = self.create_observation_space() # self.create_state_space()
         self.eval_count = 0
         self.eval_list = None
+        self.few_shot=few_shot
 
         if not os.path.exists('./logdir/BBox-DiagonalARC_Log/eval_diagonal.npy'):
             ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(5, 5)).tolist()) for _ in range(1000)])

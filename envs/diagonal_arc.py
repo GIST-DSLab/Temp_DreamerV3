@@ -485,7 +485,8 @@ class DiagonalARCEnv(AbstractARCEnv):
                 max_step = 2,
                 max_trial = -1,
                 render_mode = None, 
-                render_size = None):
+                render_size = None,
+                few_shot = True,):
         super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
         self._size = img_size
         self._resize = 'pillow'
@@ -494,6 +495,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.train_count = 0
         self.eval_count = 0
         self.eval_list = None
+        self.few_shot = few_shot
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
@@ -594,9 +596,14 @@ class DiagonalARCEnv(AbstractARCEnv):
         ex_in, ex_out, tt_in, tt_out, desc = self.loader.pick(data_index=self.prob_index)
 
         if not self.adaptation:
-            self.input_ = self.train_list[0][self.train_count] # ex_in
-            self.answer = self.train_list[1][self.train_count] # ex_out
-            self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
+            if self.few_shot:
+                self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
+                self.input_ = ex_in[self.subprob_index]
+                self.answer = ex_out[self.subprob_index]
+            else:
+                self.input_ = self.train_list[0][self.train_count] # ex_in
+                self.answer = self.train_list[1][self.train_count] # ex_out
+                self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
 
         # # # TODO test 시점에서 아래가 어떤변수로 조건문이 통과되는지 확인하기
         # else:
@@ -605,9 +612,9 @@ class DiagonalARCEnv(AbstractARCEnv):
         #     self.eval_count = 0 if (self.eval_count+1) % 1 == 0 else self.eval_count+1
 
         # if self.adaptation:
-        #     self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
-        #     self.input_ = ex_in[self.subprob_index]
-        #     self.answer = ex_out[self.subprob_index]
+            # self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
+            # self.input_ = ex_in[self.subprob_index]
+            # self.answer = ex_out[self.subprob_index]
 
         else:
             self.subprob_index = np.random.randint(0,len(tt_in)) if self.subprob_index is None else self.subprob_index

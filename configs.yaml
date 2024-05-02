@@ -216,6 +216,7 @@ diagonal_arc:
   wandb_project_name: "IJCAI-DreamerV3"
   prefill: 2_000
   task_index: 179 # 53, 129, 380, 87, 140, 339, 322
+  few_shot: True
 
 bbox-diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
@@ -234,3 +235,4 @@ bbox-diagonal_arc:
   eval_episode_num: 1e3  # eval할 episode의 개수
   use_bbox: True
   wandb_project_name: "IJCAI-DreamerV3-BBox"
+  few_shot: True

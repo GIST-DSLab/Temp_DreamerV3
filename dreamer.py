@@ -235,7 +235,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None, few_shot=config.few_shot)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -243,7 +243,7 @@ def make_env(config, mode, id):
         from arcle.wrappers import BBoxWrapper
 
         # 여기 부분 하드코딩 되어 있음
-        env = BBoxDiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
+        env = BBoxDiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(5,5), colors=10, max_step = 2, render_mode ="ansi", render_size= None, few_shot=config.few_shot)
         # env = wrappers.NormalizeActions(env)
         env = BBoxWrapper(env)
     else:
