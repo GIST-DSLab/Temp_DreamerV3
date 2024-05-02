@@ -141,3 +141,5 @@ wandb/*
 *.zip
 *.deb
 *.tar.gz
+
+mesa-18.3.3/*
