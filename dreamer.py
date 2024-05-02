@@ -21,7 +21,7 @@ import torch
 from torch import nn
 from torch import distributions as torchd
 
-# import wandb
+import wandb
 import gymnasium
 
 to_np = lambda x: x.detach().cpu().numpy()
@@ -235,7 +235,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None, few_shot=config.few_shot)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1])
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -257,8 +257,9 @@ def make_env(config, mode, id):
 
 
 def main(config):
-    # wandb.init(project=config.wandb_project_name)
-    # wandb.config.update(config)
+    wandb.init(project=config.wandb_project_name)
+    wandb.config.update(config)
+    wandb.run.name = config.logdir.split('/')[-1]
 
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:

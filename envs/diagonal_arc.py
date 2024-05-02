@@ -486,6 +486,7 @@ class DiagonalARCEnv(AbstractARCEnv):
                 max_trial = -1,
                 render_mode = None, 
                 render_size = None,
+                log_dir = 'log',
                 few_shot = True,):
         super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
         self._size = img_size
@@ -496,16 +497,17 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.eval_count = 0
         self.eval_list = None
         self.few_shot = few_shot
+        self.log_dir = log_dir
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
 
-        if not os.path.exists('./logdir/DiagonalARC_Log/train_diagonal.npy'):
+        if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.npy'):
             ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(1000)])
             ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
             full_list = np.stack((ex_in_list, ex_out_list))
-            np.save('./logdir/DiagonalARC_Log/train_diagonal.npy', full_list)
-        self.train_list = np.load('./logdir/DiagonalARC_Log/train_diagonal.npy')
+            np.save(f'./logdir/{self.log_dir}/train_diagonal.npy', full_list)
+        self.train_list = np.load(f'./logdir/{self.log_dir}/train_diagonal.npy')
         
         # if not os.path.exists('./logdir/DiagonalARC_Log/eval_diagonal.npy'):
         #     ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(5, 5)).tolist()) for _ in range(1)])
