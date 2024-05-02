@@ -9,9 +9,9 @@ Get dependencies with python 3.9:
 ```
 pip install -r requirements.txt
 ```
-Run training on DMC Vision:
+Run training on Diagonal Flip:
 ```
-python3 dreamer.py --configs dmc_vision --task dmc_walker_walk --logdir ./logdir/dmc_walker_walk
+python3 dreamer.py --config diagonal_arc --logdir ./logdir/[F4_B1]Diagonal --task diagonal_
 ```
 Monitor results:
 ```
