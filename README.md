@@ -43,6 +43,22 @@ So far, the following benchmarks can be used for testing.
 #### Crafter
 <img src="https://github.com/NM512/dreamerv3-torch/assets/70328564/a0626038-53f6-4300-a622-7ac257f4c290" width="300" height="150" />
 
+## Error Solution
+
+AttributeError: 'NoneType' object has no attribute 'glGetError':
+
+```
+pip install pyrender
+```
+
+ImportError: ('Unable to load OpenGL library', 'OSMesa: cannot open shared object file: No such file or directory', 'OSMesa', None):
+```
+sudo apt update
+sudo wget https://github.com/mmatl/travis_debs/raw/master/xenial/mesa_18.3.3-0.deb
+sudo dpkg -i ./mesa_18.3.3-0.deb || true
+sudo apt install -f
+```
+
 ## Acknowledgments
 This code is heavily inspired by the following works:
 - danijar's Dreamer-v3 jax implementation: https://github.com/danijar/dreamerv3
