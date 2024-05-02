@@ -16,7 +16,7 @@ from torch.nn import functional as F
 from torch import distributions as torchd
 from torch.utils.tensorboard import SummaryWriter
 
-import wandb
+# import wandb
 
 
 to_np = lambda x: x.detach().cpu().numpy()
@@ -85,7 +85,7 @@ class Logger:
         print(f"[{step}]", " / ".join(f"{k} {v:.1f}" for k, v in scalars))
         with (self._logdir / "metrics.jsonl").open("a") as f:
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
-            wandb.log({"step": step, **dict(scalars)})
+            # wandb.log({"step": step, **dict(scalars)})
         for name, value in scalars:
             if "/" not in name:
                 self._writer.add_scalar("scalars/" + name, value, step)

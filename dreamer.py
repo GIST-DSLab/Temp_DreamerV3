@@ -21,7 +21,7 @@ import torch
 from torch import nn
 from torch import distributions as torchd
 
-import wandb
+# import wandb
 import gymnasium
 
 to_np = lambda x: x.detach().cpu().numpy()
@@ -257,8 +257,8 @@ def make_env(config, mode, id):
 
 
 def main(config):
-    wandb.init(project=config.wandb_project_name)
-    wandb.config.update(config)
+    # wandb.init(project=config.wandb_project_name)
+    # wandb.config.update(config)
 
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:
