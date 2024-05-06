@@ -66,6 +66,7 @@ class Logger:
         self._images = {}
         self._videos = {}
         self.step = step
+        self.eval_return = None
 
     def scalar(self, name, value):
         self._scalars[name] = float(value)
@@ -84,8 +85,12 @@ class Logger:
             scalars.append(("fps", self._compute_fps(step)))
         print(f"[{step}]", " / ".join(f"{k} {v:.1f}" for k, v in scalars))
         with (self._logdir / "metrics.jsonl").open("a") as f:
+            # if 'model_loss' in scalars.keys() and scalars['model_loss'] == np.nan:
+            #     print(1)
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
             wandb.log({"step": step, **dict(scalars)})
+            if 'eval_return' in dict(scalars).keys():
+                self.eval_return = dict(scalars)['eval_return']
         for name, value in scalars:
             if "/" not in name:
                 self._writer.add_scalar("scalars/" + name, value, step)
@@ -130,6 +135,7 @@ class Logger:
         self._writer.add_video(name, value, step, 16)
 
 
+# 의문: simulate에서는 한 번에 batch만큼 못 뽑는 건가?
 def simulate(
     agent,
     envs,
@@ -173,6 +179,8 @@ def simulate(
                 obs[index] = result
         # step agents
         obs = {k: np.stack([o[k] for o in obs]) for k in obs[0] if "log_" not in k}
+
+        # 여기까지 해서 agent.metrics에 log가 기록되는데 아래를 실행시킬때 해당 log를 json파일에 저장하고 메모리에서 지움.
         action, agent_state = agent(obs, done, agent_state)
         # 원본 isinstance(action, dict)은 아래와 같음 
         # if isinstance(action, dict):
@@ -271,7 +279,7 @@ def simulate(
             # logging for done episode
             for i in indices:
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
-                length = len(cache[envs[i].id]["reward"]) - 1
+                length = len(cache[envs[i].id]["reward"]) - 1 # 이 부분 좀 더 확인해봐야 할 듯 - 이상함.
                 score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 video = cache[envs[i].id]["image"] if 'image' in cache[envs[i].id] else cache[envs[i].id]["grid"]
                 # record logs given from environments
@@ -333,6 +341,8 @@ def add_to_cache(cache, id, transition):
             else:
                 cache[id][key].append(convert(val))
         '''
+
+        # 밑에 부분 이상한 것 같음. - 확인해야 됨. => 문제점: append 되면서 length가 늘어나야 하는데 그렇지 않음(왜냐하면 마지막 index 덮어쓰기 때문)
         for key, val in transition.items():
             if key not in cache[id]:
                 # fill missing data(action, etc.) at second time
@@ -340,7 +350,6 @@ def add_to_cache(cache, id, transition):
                     for k, v in val.items():
                         cache[id][key] = [{k: convert(0 * v) for k, v in val.items()}]
                         cache[id][key].append({k: convert(v) for k, v in val.items()})
-                        #cache[id][key].append(convert(val))
                 else:
                     cache[id][key] = [convert(0 * val)]
                     cache[id][key].append(convert(val))
@@ -348,11 +357,8 @@ def add_to_cache(cache, id, transition):
             else:
                 if (key == 'action' or key == 'logprob') and type(val) == dict:
                     for k, v in val.items():
-                        cache[id][key] = [{k: convert(0 * v) for k, v in val.items()}]
                         cache[id][key].append({k: convert(v) for k, v in val.items()})
-                        #cache[id][key].append(convert(val))
                 else:
-                    cache[id][key] = [convert(0 * val)]
                     cache[id][key].append(convert(val))
 
 
@@ -453,8 +459,8 @@ def sample_episodes(episodes, length, seed=0):
         ret = None
         p = np.array(
             [len(next(iter(episode.values()))) for episode in episodes.values()]
-        )
-        p = p / np.sum(p)
+        ) # 의문: p가 무엇을 뜻하는 걸까?
+        p = p / np.sum(p)  # 의문: 왜 이렇게 해주는 거지?
         while size < length:
             episode = np_random.choice(list(episodes.values()), p=p)
             total = len(next(iter(episode.values())))

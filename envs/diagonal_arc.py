@@ -499,8 +499,11 @@ class DiagonalARCEnv(AbstractARCEnv):
                 few_shot = True,
                 num_func = 4,
                 color_permute = False,
+                submit_flag = False,
+                acc_flag = False,
                 ):
         self.num_func = num_func
+        self.submit_flag = submit_flag
         super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
         self._size = img_size
         self._resize = 'pillow'
@@ -512,25 +515,28 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.few_shot = few_shot
         self.log_dir = log_dir
         self.color_permute = color_permute
+        self.acc_flag = acc_flag
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
 
-        if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.npy'):
-            ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(1000)])
-            ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-            full_list = np.stack((ex_in_list, ex_out_list))
-            np.save(f'./logdir/{self.log_dir}/train_diagonal.npy', full_list)
-        self.train_list = np.load(f'./logdir/{self.log_dir}/train_diagonal.npy')
+        if not self.few_shot:
+            if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.npy'):
+                ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(1000)])
+                ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
+                full_list = np.stack((ex_in_list, ex_out_list))
+                np.save(f'./logdir/{self.log_dir}/train_diagonal.npy', full_list)
+            self.train_list = np.load(f'./logdir/{self.log_dir}/train_diagonal.npy')
         
-        # if not os.path.exists('./logdir/DiagonalARC_Log/eval_diagonal.npy'):
-        #     ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(5, 5)).tolist()) for _ in range(1)])
-        #     ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-        #     full_list = np.stack((ex_in_list, ex_out_list))
-        #     np.save('./logdir/DiagonalARC_Log/eval_diagonal.npy', full_list)
-        
-        # self.eval_list = np.load('./logdir/DiagonalARC_Log/eval_diagonal.npy')
+        if self.acc_flag:
+            if not os.path.exists(f'./logdir/{self.log_dir}/eval_diagonal.npy'):
+                ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(100)])
+                ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
+                full_list = np.stack((ex_in_list, ex_out_list))
+                np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
+            
+            self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
 
         # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
         #     os.makedirs('./logdir/DiagonalARC_Log/images')
@@ -556,7 +562,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.current_state.update(add_dict)
 
     def reward(self, state):
-        if not self.action_steps == 2:
+        if not self.last_action_op == len(self.operations)-1:
             return 0
         if tuple(state['grid_dim']) == self.answer.shape:
             h,w = self.answer.shape
@@ -612,7 +618,7 @@ class DiagonalARCEnv(AbstractARCEnv):
 
         ex_in, ex_out, tt_in, tt_out, desc = self.loader.pick(data_index=self.prob_index)
 
-        if not self.adaptation:
+        if self.adaptation:
             if self.few_shot:
                 self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
                 self.input_ = ex_in[self.subprob_index]
@@ -625,22 +631,16 @@ class DiagonalARCEnv(AbstractARCEnv):
                     self.input_ = self.train_list[0][self.train_count] # ex_in
                     self.answer = self.train_list[1][self.train_count] # ex_out
                     self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
-
-        # # # TODO test 시점에서 아래가 어떤변수로 조건문이 통과되는지 확인하기
-        # else:
-        #     self.input_ = self.eval_list[0][self.eval_count]
-        #     self.answer = self.eval_list[1][self.eval_count]
-        #     self.eval_count = 0 if (self.eval_count+1) % 1 == 0 else self.eval_count+1
-
-        # if self.adaptation:
-            # self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
-            # self.input_ = ex_in[self.subprob_index]
-            # self.answer = ex_out[self.subprob_index]
-
         else:
-            self.subprob_index = np.random.randint(0,len(tt_in)) if self.subprob_index is None else self.subprob_index
-            self.input_ = tt_in[self.subprob_index]
-            self.answer = tt_out[self.subprob_index]
+            if self.acc_flag:
+                self.input_ = self.eval_list[0][self.eval_count]
+                self.answer = self.eval_list[1][self.eval_count]
+                self.eval_count = 0 if (self.eval_count+1) % 100 == 0 else self.eval_count+1
+            else:
+                self.subprob_index = np.random.randint(0,len(tt_in)) if self.subprob_index is None else self.subprob_index
+                self.input_ = tt_in[self.subprob_index]
+                self.answer = tt_out[self.subprob_index]
+
 
 
         # 아래는 코드가 잘 돌아가는 체크를 위해서 image를 저장하도록 함.
@@ -663,13 +663,17 @@ class DiagonalARCEnv(AbstractARCEnv):
         return self._obs(reward=0, is_first=True, is_last=False, is_terminal=False)[0]#, self.info
     
     def create_operations(self):
-        # ops = [rotate_left, rotate_right, horizontal_flip, vertical_flip]
-        ops = [gen_rotate(1), gen_rotate(3), gen_flip("H"), gen_flip("V")] #왼쪽, 오른쪽, 수평, 수직
+        ops = []
+
+        # ops += [rotate_left, rotate_right, horizontal_flip, vertical_flip]
+
+        ops += [gen_rotate(1), gen_rotate(3), gen_flip("H"), gen_flip("V")] #왼쪽, 오른쪽, 수평, 수직
         if self.num_func == 11:
             ops += [reset_sel(gen_color(i)) for i in [4,6,8,9]] # 노란색, 분홍색, 하늘색, 갈색
             ops += [gen_move(d=1)] # 아래 이동
             ops += [reset_sel(gen_copy("O")) , reset_sel(gen_paste(paste_blank=True))] # grid 복사, 붙여넣기
-        # ops += [self.submit] # 제출
+        if self.submit_flag:
+            ops += [self.submit] # 제출
         return ops
 
     def render_ansi(self):
@@ -718,12 +722,10 @@ class DiagonalARCEnv(AbstractARCEnv):
 
     def step(self, action):
         # 문제였던 부분.
-        self.last_action_op = action
-
         if len(action.shape) >= 1:
             action = np.argmax(action)
 
-        # self.last_action = action
+        self.last_action_op = action
 
         # do action
         state = copy.deepcopy(self.current_state)
@@ -736,7 +738,18 @@ class DiagonalARCEnv(AbstractARCEnv):
         state = self.current_state
         self.action_steps+=1
         reward = self.reward(state)
+
+        # if action == len(self.operations) -1:
+        #     reward = self.reward(state)
+        # else:
+        #     # reward = self.reward(state)
+        #     # if reward != 0:
+        #     #     reward /= 1e3
+        #     reward = 0
+
         self.last_reward += reward
+        # self.last_reward = reward
+        
         self.info["steps"] = self.action_steps
         #self.render() print(self.operations[2](self.operations[1](self.input_, 1),2)) print(self.operations[action](state['grid'],1))
         # action_map = {0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'}
@@ -747,18 +760,18 @@ class DiagonalARCEnv(AbstractARCEnv):
         # image = Image.open(create_img(grid)).convert('RGB')
         # image.save(f'./logdir/DiagonalARC_Log/images/{self.epiosde_index}_{self.info["steps"]}_{action_map[action]}_{reward}.png', 'png')
 
-        is_terminal = bool(reward)
-        state["terminated"][0] = is_terminal
+        # is_terminal = bool(reward)
+        # state["terminated"][0] = is_terminal
         info = self.info
 
-        if self.info["steps"] == 2:
+        if self.info["steps"] == self.max_step:
             self.submit(state)
             is_terminal = True
         
         return self._obs(
             self.last_reward,
-            is_last=info['steps'] == self.max_step,
-            is_terminal=is_terminal,
+            is_last=(info['steps'] == self.max_step) or state["terminated"][0],
+            is_terminal=state["terminated"][0],
         )
 
     # @property
@@ -771,17 +784,20 @@ class DiagonalARCEnv(AbstractARCEnv):
         return gym.spaces.Discrete(action_count)
     
     def submit(self, state) -> None:
-        if state["trials_remain"][0] !=0:
-            state["trials_remain"][0] -=1
-            self.submit_count +=1
-            h,w = state["grid_dim"][0], state["grid_dim"][1]
-            if self.answer.shape == (h,w) and np.all(self.answer==np.array(state["grid"])[:h,:w]):
-                state["terminated"][0] = 1 # correct
-            if self.reset_on_submit:
-                self.init_state(self.input_, options=self.options)
+        state["terminated"][0] = 1 # correct
 
-        if state["trials_remain"][0] == 0:
-            state["terminated"][0] = 1 # end 
+
+        # if state["trials_remain"][0] !=0:
+        #     state["trials_remain"][0] -=1
+        #     self.submit_count +=1
+        #     h,w = state["grid_dim"][0], state["grid_dim"][1]
+        #     if self.answer.shape == (h,w) and np.all(self.answer==np.array(state["grid"])[:h,:w]):
+        #         state["terminated"][0] = 1 # correct
+        #     if self.reset_on_submit:
+        #         self.init_state(self.input_, options=self.options)
+
+        # if state["trials_remain"][0] == 0:
+        #     state["terminated"][0] = 1 # end 
         
         # self.epiosde_index += 1
         # self.count_action_case[self.current_action_case] += 1

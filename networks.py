@@ -222,17 +222,19 @@ class RSSM(nn.Module):
                     val * (1.0 - is_first_r) + init_state[key] * is_first_r
                 )
 
-        prior = self.img_step(prev_state, prev_action)
+        prior = self.img_step(prev_state, prev_action) # 추측: RSSM의 deterministic state를 뽑는 것 같음(h vector)
         x = torch.cat([prior["deter"], embed], -1)
         # (batch_size, prior_deter + embed) -> (batch_size, hidden)
-        x = self._obs_out_layers(x)
-        # (batch_size, hidden) -> (batch_size, stoch, discrete_num)
+        x = self._obs_out_layers(x) # 추측: 이 부분이 dreamerV3에서 h vector(sequence model의 output)인 것 같음
+        # (batch_size, hidden) -> (batch_size, stoch, discrete_num) # 모르는 부분: discrete_num이 뭐지? 왜 쓰지?
         stats = self._suff_stats_layer("obs", x)
         if sample:
             stoch = self.get_dist(stats).sample()
         else:
             stoch = self.get_dist(stats).mode()
         post = {"stoch": stoch, "deter": prior["deter"], **stats}
+
+        # h vector인 x를 return하지 하고 post와 prior만 return하지? 
         return post, prior
 
     def img_step(self, prev_state, prev_action, sample=True):

@@ -38,6 +38,7 @@ class Dreamer(nn.Module):
         self._should_reset = tools.Every(config.reset_every)
         self._should_expl = tools.Until(int(config.expl_until / config.action_repeat))
         self._metrics = {}
+        self._premetrics = {}
         # this is update step
         self._step = logger.step // config.action_repeat
         self._update_count = 0
@@ -71,6 +72,7 @@ class Dreamer(nn.Module):
             if self._should_log(step):
                 for name, values in self._metrics.items():
                     self._logger.scalar(name, float(np.mean(values)))
+                    self._premetrics[name] = float(np.mean(values))
                     self._metrics[name] = []
                 if self._config.video_pred_log:
                     openl = self._wm.video_pred(next(self._dataset))
@@ -111,7 +113,7 @@ class Dreamer(nn.Module):
         # bbox때문에 아래와 같이 수정함.
         if self._config.eval_state_mean:
             latent["stoch"] = latent["mean"]
-        feat = self._wm.dynamics.get_feat(latent)
+        feat = self._wm.dynamics.get_feat(latent) # 모르는 부분: 이거는 뭐하는 거지? 왜 쓰지?
         if not training:
             actor = self._task_behavior.actor(feat)
             if self._config.use_bbox:
@@ -235,7 +237,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1], num_func=config.num_func, color_permute=config.color_permute)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1], num_func=config.num_func, color_permute=config.color_permute, submit_flag=config.submit_flag, acc_flag=config.acc_flag)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -400,9 +402,11 @@ def main(config):
         agent.load_state_dict(checkpoint["agent_state_dict"])
         tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
         agent._should_pretrain._once = False
-
+    
+    log_model_loss = -1
+    log_eval_return = -1 
     # make sure eval will be executed once after config.steps
-    while agent._step < config.steps + config.eval_every:
+    while agent._step < config.steps + config.eval_every + config.prefill:
         logger.write()
         if config.eval_episode_num > 0:
             print("Start evaluation.")
@@ -421,6 +425,17 @@ def main(config):
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
                 logger.video("eval_openl", to_np(video_pred))
+            # best.pt 저장을 위한 부분
+            if agent._metrics != {} and (log_model_loss == -1.0 or agent._premetrics['model_loss'] < log_model_loss) and (log_eval_return == -1 or log_eval_return > logger.eval_return):
+                log_model_loss = agent._premetrics['model_loss']
+                log_eval_return = logger.eval_return
+                items_to_save = {
+                    "agent_state_dict": agent.state_dict(),
+                    "optims_state_dict": tools.recursively_collect_optim_state_dict(agent),
+                }
+                torch.save(items_to_save, logdir / "best.pt")
+
+
         print("Start training.")
         state = tools.simulate(
             agent,
