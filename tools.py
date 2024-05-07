@@ -282,7 +282,7 @@ def simulate(
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
                 length = len(cache[envs[i].id]["reward"]) - 1
                 if config.acc_flag and is_eval:
-                    score = 1 if cache[envs[i].id]['is_terminal'][-1] == 1 and np.array(cache[envs[i].id]["reward"])[-1] > 1000 else 0
+                    score = 1 if cache[envs[i].id]['is_terminal'][-1] == 1 and np.array(cache[envs[i].id]["reward"])[-1] >= 1000 else 0
                 else:
                     score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 video = cache[envs[i].id]["image"] if 'image' in cache[envs[i].id] else cache[envs[i].id]["grid"]

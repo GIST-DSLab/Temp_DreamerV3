@@ -501,6 +501,7 @@ class DiagonalARCEnv(AbstractARCEnv):
                 color_permute = False,
                 submit_flag = False,
                 acc_flag = False,
+                oracle_reward = False,
                 ):
         self.num_func = num_func
         self.submit_flag = submit_flag
@@ -517,6 +518,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.color_permute = color_permute
         self.acc_flag = acc_flag
         self.train_set = None
+        self.oracle_reward = oracle_reward
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
@@ -798,20 +800,17 @@ class DiagonalARCEnv(AbstractARCEnv):
         return gym.spaces.Discrete(action_count)
     
     def submit(self, state) -> None:
-        state["terminated"][0] = 1 # correct
+        if state["trials_remain"][0] !=0:
+            state["trials_remain"][0] -=1
+            self.submit_count +=1
+            h,w = state["grid_dim"][0], state["grid_dim"][1]
+            if self.answer.shape == (h,w) and np.all(self.answer==np.array(state["grid"])[:h,:w]):
+                state["terminated"][0] = 1 # correct
+            if self.reset_on_submit:
+                self.init_state(self.input_, options=self.options)
 
-
-        # if state["trials_remain"][0] !=0:
-        #     state["trials_remain"][0] -=1
-        #     self.submit_count +=1
-        #     h,w = state["grid_dim"][0], state["grid_dim"][1]
-        #     if self.answer.shape == (h,w) and np.all(self.answer==np.array(state["grid"])[:h,:w]):
-        #         state["terminated"][0] = 1 # correct
-        #     if self.reset_on_submit:
-        #         self.init_state(self.input_, options=self.options)
-
-        # if state["trials_remain"][0] == 0:
-        #     state["terminated"][0] = 1 # end 
+        if state["trials_remain"][0] == 0:
+            state["terminated"][0] = 1 # end 
         
         # self.epiosde_index += 1
         # self.count_action_case[self.current_action_case] += 1

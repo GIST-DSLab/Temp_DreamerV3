@@ -237,7 +237,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1], num_func=config.num_func, color_permute=config.color_permute, submit_flag=config.submit_flag, acc_flag=config.acc_flag)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1], num_func=config.num_func, color_permute=config.color_permute, submit_flag=config.submit_flag, acc_flag=config.acc_flag, max_trial=config.max_trial, oracle_reward=config.oracle_reward)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
