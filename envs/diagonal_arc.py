@@ -516,6 +516,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.log_dir = log_dir
         self.color_permute = color_permute
         self.acc_flag = acc_flag
+        self.train_set = None
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
@@ -528,14 +529,26 @@ class DiagonalARCEnv(AbstractARCEnv):
                 full_list = np.stack((ex_in_list, ex_out_list))
                 np.save(f'./logdir/{self.log_dir}/train_diagonal.npy', full_list)
             self.train_list = np.load(f'./logdir/{self.log_dir}/train_diagonal.npy')
+            self.train_set = set(map(str,self.train_list[0].tolist()))
         
         if self.acc_flag:
             if not os.path.exists(f'./logdir/{self.log_dir}/eval_diagonal.npy'):
-                ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(100)])
-                ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-                full_list = np.stack((ex_in_list, ex_out_list))
-                np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
-            
+                if few_shot:
+                    ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(100)])
+                    ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
+                    full_list = np.stack((ex_in_list, ex_out_list))
+                    np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
+                else:
+                    ex_in_list = []
+                    for _ in range(100):
+                        while True:
+                            temp = np.random.randint(0, 10, size=(3, 3)).tolist()
+                            if str(temp) not in self.train_set:
+                                ex_in_list.append(np.array(temp))
+                                break
+                    ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
+                    full_list = np.stack((ex_in_list, ex_out_list))
+                    np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
             self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
 
         # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
@@ -562,12 +575,13 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.current_state.update(add_dict)
 
     def reward(self, state):
-        if not self.last_action_op == len(self.operations)-1:
-            return 0
         if tuple(state['grid_dim']) == self.answer.shape:
             h,w = self.answer.shape
             if np.all(np.array(state['grid'])[0:h, 0:w] == self.answer):
-                return 1
+                if not self.last_action_op == len(self.operations)-1:
+                    return 1
+                else:
+                    return 1000
         return 0
 
     @property
@@ -747,7 +761,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         #     #     reward /= 1e3
         #     reward = 0
 
-        self.last_reward += reward
+        self.last_reward = reward
         # self.last_reward = reward
         
         self.info["steps"] = self.action_steps
@@ -765,7 +779,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         info = self.info
 
         if self.info["steps"] == self.max_step:
-            self.submit(state)
+            # self.submit(state)
             is_terminal = True
         
         return self._obs(

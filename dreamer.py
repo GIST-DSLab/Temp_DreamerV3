@@ -380,7 +380,8 @@ def main(config):
             limit=config.dataset_size,
             steps=prefill,
             use_bbox=True if config.use_bbox else False,
-            option = {'adaptation': True}
+            option = {'adaptation': True},
+            config=config,
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
@@ -421,6 +422,7 @@ def main(config):
                 episodes=config.eval_episode_num,
                 option = {'adaptation': False},
                 use_bbox=True if config.use_bbox else False,
+                config=config,
             )
             if config.video_pred_log:
                 video_pred = agent._wm.video_pred(next(eval_dataset))
@@ -448,6 +450,7 @@ def main(config):
             state=state,
             option = {'adaptation': True},
             use_bbox=True if config.use_bbox else False,
+            config=config,
         )
         items_to_save = {
             "agent_state_dict": agent.state_dict(),

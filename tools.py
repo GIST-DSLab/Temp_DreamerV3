@@ -149,6 +149,7 @@ def simulate(
     state=None,
     option=None,
     use_bbox=False,
+    config=None,
 ):
     # initialize or unpack simulation state
     if state is None:
@@ -279,8 +280,11 @@ def simulate(
             # logging for done episode
             for i in indices:
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
-                length = len(cache[envs[i].id]["reward"]) - 1 # 이 부분 좀 더 확인해봐야 할 듯 - 이상함.
-                score = float(np.array(cache[envs[i].id]["reward"]).sum())
+                length = len(cache[envs[i].id]["reward"]) - 1
+                if config.acc_flag and is_eval:
+                    score = 1 if cache[envs[i].id]['is_terminal'][-1] == 1 and np.array(cache[envs[i].id]["reward"])[-1] > 1000 else 0
+                else:
+                    score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 video = cache[envs[i].id]["image"] if 'image' in cache[envs[i].id] else cache[envs[i].id]["grid"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):

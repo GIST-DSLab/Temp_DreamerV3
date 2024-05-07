@@ -214,9 +214,9 @@ diagonal_arc:
   batch_size: 64
   parallel: False # 병렬 처리, 이것을 사용하면 wandb init이 2번 됨.
   wandb_project_name: "IJCAI-DreamerV3"
-  prefill: 2_000
+  prefill: 10_000
   task_index: 179 # 53, 129, 380, 87, 140, 339, 322
-  few_shot: True
+  few_shot: False
   num_func: 4
   color_permute: False
   steps: 3_000
