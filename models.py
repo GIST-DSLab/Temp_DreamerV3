@@ -139,9 +139,6 @@ class WorldModel(nn.Module):
 
         data = self.preprocess(data)
 
-        if sum(data['is_terminal'][:,-1]) > 0:
-            print(1)
-
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
                 embed = self.encoder(data)
