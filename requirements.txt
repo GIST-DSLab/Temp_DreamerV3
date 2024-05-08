@@ -20,6 +20,7 @@ pyopengl==3.1.4
 tensorboard
 importlib-metadata
 arcle
+wandb
 # minerl==0.4.4
 # This was needed for minerl
 # conda install -c conda-forge openjdk=8

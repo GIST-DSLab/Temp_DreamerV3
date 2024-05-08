@@ -56,6 +56,7 @@ class Dreamer(nn.Module):
             random=lambda: expl.Random(config, act_space),
             plan2explore=lambda: expl.Plan2Explore(config, self._wm, reward),
         )[config.expl_behavior]().to(self._config.device)
+        # 뭐지? 모름 - self._task_behavior와 self._expl_behavior의 차이가 뭐지?
 
     def __call__(self, obs, reset, state=None, training=True):
         step = self._step
@@ -66,7 +67,7 @@ class Dreamer(nn.Module):
                 else self._should_train(step)
             )
             for _ in range(steps):
-                self._train(next(self._dataset))
+                self._train(next(self._dataset)) # 중요, 모름 - 왜 dataset을 생성해서 사용하는 거지? 기존에 
                 self._update_count += 1
                 self._metrics["update_count"] = self._update_count
             if self._should_log(step):
@@ -151,13 +152,13 @@ class Dreamer(nn.Module):
 
     def _train(self, data):
         metrics = {}
-        post, context, mets = self._wm._train(data)
+        post, context, mets = self._wm._train(data) # world model 학습
         metrics.update(mets)
         start = post
         reward = lambda f, s, a: self._wm.heads["reward"](
             self._wm.dynamics.get_feat(s)
         ).mode()
-        metrics.update(self._task_behavior._train(start, reward)[-1])
+        metrics.update(self._task_behavior._train(start, reward)[-1]) # SAC 학습
         if self._config.expl_behavior != "greedy":
             mets = self._expl_behavior.train(start, context, data)[-1]
             metrics.update({"expl_" + key: value for key, value in mets.items()})
@@ -172,8 +173,8 @@ def count_steps(folder):
     return sum(int(str(n).split("-")[-1][:-4]) - 1 for n in folder.glob("*.npz"))
 
 
-def make_dataset(episodes, config):
-    generator = tools.sample_episodes(episodes, config.batch_length)
+def make_dataset(episodes, config): # 중요 - 해당 부분과 내부 함수들 이해하기
+    generator = tools.sample_episodes(episodes, config.batch_length) 
     dataset = tools.from_generator(generator, config.batch_size)
     return dataset
 

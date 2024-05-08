@@ -138,13 +138,9 @@ class WorldModel(nn.Module):
         # discount (batch_size, batch_length)
 
         data = self.preprocess(data)
-        # data['grid'] = torch.from_numpy(data['grid'].astype(np.int32)).to(self._config.device)
-        # data['is_terminal'] = torch.from_numpy(data['is_terminal'].astype(np.bool_)).to(self._config.device)
-        # data['is_first'] = torch.from_numpy(data['is_first'].astype(np.bool_)).to(self._config.device)
-        # data['reward'] = torch.from_numpy(data['reward'].astype(np.float32)).to(self._config.device)
-        # data['discount'] = torch.from_numpy(data['discount'].astype(np.float32)).to(self._config.device)
-        # data['action'] = convert_dict_to_tensor('action', data['action'], self._config.device)
-        # data['logprob'] = convert_dict_to_tensor('logprob', data['logprob'], self._config.device)
+
+        if sum(data['is_terminal'][:,-1]) > 0:
+            print(1)
 
         with tools.RequiresGrad(self):
             with torch.cuda.amp.autocast(self._use_amp):
@@ -356,7 +352,7 @@ class ImagBehavior(nn.Module):
         start,
         objective,
     ):
-        self._update_slow_target()
+        self._update_slow_target() # 의문: 이건 뭐지? 어떻게 쓰는 거지?
         metrics = {}
 
         with tools.RequiresGrad(self.actor):
@@ -369,7 +365,7 @@ class ImagBehavior(nn.Module):
                     actor_ent = sum([self.actor(imag_feat)[k].entropy()for k in self.actor(imag_feat)])
                 else:
                     actor_ent = self.actor(imag_feat).entropy()
-                state_ent = self._world_model.dynamics.get_dist(imag_state).entropy()
+                state_ent = self._world_model.dynamics.get_dist(imag_state).entropy() # state_ent 쓰지도 않을거면서 왜 만든거지?
                 # this target is not scaled by ema or sym_log.
                 target, weights, base = self._compute_target(
                     imag_feat, imag_state, reward
@@ -428,11 +424,11 @@ class ImagBehavior(nn.Module):
                 action = {k: policy(inp)[k].sample() for k in policy(inp).keys()}
             else:
                 action = policy(inp).sample()
-            succ = dynamics.img_step(state, action)
+            succ = dynamics.img_step(state, action) # 중요: 이 부분 이해하기
             return succ, feat, action
 
         succ, feats, actions = tools.static_scan(
-            step, [torch.arange(horizon)], (start, None, None)
+            step, [torch.arange(horizon)], (start, None, None) # horizon의 의미가 뭘까?
         )
         states = {k: torch.cat([start[k][None], v[:-1]], 0) for k, v in succ.items()}
 
@@ -453,9 +449,9 @@ class ImagBehavior(nn.Module):
             lambda_=self._config.discount_lambda,
             axis=0,
         )
-        weights = torch.cumprod(
+        weights = torch.cumprod(  # torch.cumprod는 product를 누적하는 거 -> 행렬곱을 누적
             torch.cat([torch.ones_like(discount[:1]), discount[:-1]], 0), 0
-        ).detach()
+        ).detach()  # weights이 뭐지?
         return target, weights, value[:-1]
 
     def _compute_actor_loss(

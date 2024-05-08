@@ -1,0 +1,5 @@
+[default]
+entity = whatchang
+project = IJCAI-DreamerV3
+base_url = https://api.wandb.ai
+

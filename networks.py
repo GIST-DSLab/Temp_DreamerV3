@@ -138,12 +138,6 @@ class RSSM(nn.Module):
     def observe(self, embed, action, is_first, state=None):
         swap = lambda x: x.permute([1, 0] + list(range(2, len(x.shape))))
         # (batch, time, ch) -> (time, batch, ch)
-        # bbox때문에 밑에 코드 추가함
-        # if type(is_first) == np.ndarray:
-        #     is_first = torch.from_numpy(is_first)
-        #     action = torch.stack([torch.cat((torch.from_numpy(action[i, 0]), torch.from_numpy(action[i,1]))) for i in range(action.shape[0])]).to('cuda')
-        #     for i in range(action.shape[0]):
-        #         action[i, :].dtype = np.int32
 
         # 원본
         # embed, action, is_first = swap(embed), swap(action), swap(is_first)
@@ -210,7 +204,7 @@ class RSSM(nn.Module):
             )
         # overwrite the prev_state only where is_first=True
         elif torch.sum(is_first) > 0:
-            is_first = is_first[:, None]
+            is_first = is_first[:, None] # <- reshape 잡기술
             prev_action *= 1.0 - is_first
             init_state = self.initial(len(is_first))
             for key, val in prev_state.items():
@@ -234,8 +228,8 @@ class RSSM(nn.Module):
             stoch = self.get_dist(stats).mode()
         post = {"stoch": stoch, "deter": prior["deter"], **stats}
 
-        # h vector인 x를 return하지 하고 post와 prior만 return하지? 
-        return post, prior
+        # h vector인 x를 return하지 않고 post와 prior만 return하지? 
+        return post, prior # post와 prior의 대한 명확한 차이를 이해하지 못함. 단순하게 post는 z vector(dreamer), prior는 h vector(RSSM)정도만 앎.
 
     def img_step(self, prev_state, prev_action, sample=True):
         # (batch, stoch, discrete_num)

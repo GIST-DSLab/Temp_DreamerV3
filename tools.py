@@ -301,7 +301,11 @@ def simulate(
                     logger.scalar(f"train_return", score)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
-                    logger.write(step=logger.step)
+                    # 원본은 아래
+                    # logger.write(step=logger.step)
+                    
+                    # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
+                    logger.write(step=step)
                 else:
                     if not "eval_lengths" in locals():
                         eval_lengths = []
@@ -319,7 +323,11 @@ def simulate(
                         logger.scalar(f"eval_return", score)
                         logger.scalar(f"eval_length", length)
                         logger.scalar(f"eval_episodes", len(eval_scores))
-                        logger.write(step=logger.step)
+                        # 원본은 아래
+                        # logger.write(step=logger.step)
+                        
+                        # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
+                        logger.write(step=step)
                         eval_done = True
     if is_eval:
         # keep only last item for saving memory. this cache is used for video_pred later
@@ -421,38 +429,10 @@ def from_generator(generator, batch_size):
         for key in batch[0].keys():
             data[key] = []
             for i in range(batch_size):
-                # 원본
                 data[key].append(batch[i][key])
 
-                # bbox 때문에 아래와 같이 수정
-                # if key == 'grid':
-                #     target_type = np.uint8
-                # elif key == 'is_terminal':
-                #     target_type = np.bool_
-                # elif key == 'is_first':
-                #     target_type = np.bool_
-                # elif key == 'reward':
-                #     target_type = np.float32
-                # elif key == 'discount':
-                #     target_type = np.float32
-                # elif key == 'action':
-                #     target_type = np.int32
-                # elif key == 'logprob':
-                #     target_type = np.float32
-
-                # if key in ['action', 'logprob']:
-                #     # generateor(self.dataset)에서 자꾸 텅빈 array가 들어있어서 concat시 shape 맞지 않는 문제 발생
-                #     temp = np.array([target for target in batch[i]['action']])
-                #     data[key].append(temp)
-                # elif key == 'grid':
-                #     data[key].append(np.array(batch[i][key]))
-                # else:
-                #     data[key].append(batch[i][key].astype(target_type))
-            # 원본
             data[key] = np.stack(data[key], 0)
 
-            # BBox 때문에 아래와 같이 object타입으로 변경
-            # data[key] = np.stack(data[key], 0, dtype=object)
         yield data
 
 
@@ -463,8 +443,8 @@ def sample_episodes(episodes, length, seed=0):
         ret = None
         p = np.array(
             [len(next(iter(episode.values()))) for episode in episodes.values()]
-        ) # 의문: p가 무엇을 뜻하는 걸까?
-        p = p / np.sum(p)  # 의문: 왜 이렇게 해주는 거지?
+        ) # 의문: p가 무엇을 뜻하는 걸까? -> 각 episode의 length + 1를 뜻함. 매 첫 episode의 step은 0으로 채워져 있음.
+        p = p / np.sum(p) 
         while size < length:
             episode = np_random.choice(list(episodes.values()), p=p)
             total = len(next(iter(episode.values())))
@@ -945,14 +925,14 @@ def static_scan(fn, inputs, start):
     flag = True
     for index in indices:
         inp = lambda x: (_input[x] for _input in inputs)
-        last = fn(last, *inp(index))
+        last = fn(last, *inp(index))  # last는 (post, prior)이다.
         if flag:
             if type(last) == type({}):
                 outputs = {
                     key: value.clone().unsqueeze(0) for key, value in last.items()
                 }
             else:
-                outputs = []
+                outputs = [] # <- world model 학습시 post, prior를 저장하기 위한 list, post(max_len, batch_size, grid_size(30,30)), prior(max_len, batch_size, grid_size(30,30))로 구성됨.
                 for _last in last:
                     if type(_last) == type({}):
                         outputs.append(
