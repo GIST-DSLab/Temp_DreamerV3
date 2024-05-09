@@ -332,7 +332,7 @@ def simulate(
                         logger.scalar(f"eval_return", score)
                         logger.scalar(f"eval_length", length)
                         logger.scalar(f"eval_episodes", len(eval_scores))
-                        logger.scalar(f"eva_accuracy", acc_score)
+                        logger.scalar(f"eval_accuracy", acc_score)
                         # 원본은 아래
                         # logger.write(step=logger.step)
                         

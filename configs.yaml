@@ -217,7 +217,7 @@ diagonal_arc:
   prefill: 1_000
   task_index: 179 # 53, 129, 380, 87, 140, 339, 322
   few_shot: False
-  num_func: 4
+  num_func: 11
   color_permute: False
   steps: 300_000
   submit_flag: True
