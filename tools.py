@@ -264,7 +264,7 @@ def simulate(
         length += 1
         step += len(envs)
         if not is_eval:
-            log_step += len(envs)
+            log_step += config.batch_size * config.batch_length
         length *= 1 - done
         # add to cache
         for a, result, env in zip(action, results, envs):
