@@ -78,7 +78,7 @@ class Logger:
     def video(self, name, value):
         self._videos[name] = np.array(value)
 
-    def write(self, fps=False, step=False, log_step=False, random_flag=False):
+    def write(self, fps=False, step=False):
         if not step:
             step = self.step
         scalars = list(self._scalars.items())
@@ -89,8 +89,8 @@ class Logger:
             # if 'model_loss' in scalars.keys() and scalars['model_loss'] == np.nan:
             #     print(1)
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
-            if len({"step": step, **dict(scalars)}.keys()) > 1 and not random_flag:
-                wandb.log({"step": step, **dict(scalars)}, step=log_step)
+            if len({"step": step, **dict(scalars)}.keys()) > 1:
+                wandb.log({"step": step, **dict(scalars)}, step=step)
             if 'eval_return' in dict(scalars).keys():
                 self.eval_return = dict(scalars)['eval_return']
         for name, value in scalars:
@@ -152,7 +152,6 @@ def simulate(
     option=None,
     use_bbox=False,
     config=None,
-    random_flag=False,
 ):
     global log_step
     # initialize or unpack simulation state
@@ -186,7 +185,7 @@ def simulate(
         obs = {k: np.stack([o[k] for o in obs]) for k in obs[0] if "log_" not in k}
 
         # 여기까지 해서 agent.metrics에 log가 기록되는데 아래를 실행시킬때 해당 log를 json파일에 저장하고 메모리에서 지움.
-        action, agent_state = agent(obs, done, agent_state, log_step=log_step)
+        action, agent_state = agent(obs, done, agent_state)
         # 원본 isinstance(action, dict)은 아래와 같음 
         # if isinstance(action, dict):
         
@@ -265,8 +264,8 @@ def simulate(
         episode += int(done.sum())
         length += 1
         step += len(envs)
-        if not is_eval and not random_flag:
-            log_step += config.batch_size * config.batch_length
+        if not is_eval:
+            log_step += len(envs)
         length *= 1 - done
         # add to cache
         for a, result, env in zip(action, results, envs):
@@ -312,7 +311,7 @@ def simulate(
                     # logger.write(step=logger.step)
                     
                     # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
-                    logger.write(step=step, log_step=log_step, random_flag=random_flag)
+                    logger.write(step=log_step)
                 else:
                     if not "eval_lengths" in locals():
                         eval_lengths = []
@@ -338,7 +337,7 @@ def simulate(
                         # logger.write(step=logger.step)
                         
                         # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
-                        logger.write(step=step, log_step=log_step)
+                        logger.write(step=log_step)
                         eval_done = True
     if is_eval:
         # keep only last item for saving memory. this cache is used for video_pred later

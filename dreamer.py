@@ -58,7 +58,7 @@ class Dreamer(nn.Module):
         )[config.expl_behavior]().to(self._config.device)
         # 뭐지? 모름 - self._task_behavior와 self._expl_behavior의 차이가 뭐지?
 
-    def __call__(self, obs, reset, state=None, training=True, log_step=None):
+    def __call__(self, obs, reset, state=None, training=True):
         step = self._step
         if training:
             steps = (
@@ -78,7 +78,7 @@ class Dreamer(nn.Module):
                 if self._config.video_pred_log:
                     openl = self._wm.video_pred(next(self._dataset))
                     self._logger.video("train_openl", to_np(openl))
-                self._logger.write(fps=True, log_step=log_step)
+                self._logger.write(fps=True)
 
         policy_output, state = self._policy(obs, state, training)
 
@@ -383,7 +383,6 @@ def main(config):
             use_bbox=True if config.use_bbox else False,
             option = {'adaptation': True},
             config=config,
-            random_flag=True,
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
