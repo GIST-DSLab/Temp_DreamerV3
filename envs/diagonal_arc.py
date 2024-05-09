@@ -529,7 +529,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         # self.current_action_case = ''
 
         if not self.few_shot:
-            if os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.pkl') :
+            if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.pkl') :
                 if self.n_by_n_flag:
                     n_list = [np.random.randint(0, 3, size=1).tolist() for _ in range(self.aug_train_num)]
                     ex_in_list = [np.array(np.random.randint(0, 10, size=(self.n_dim[i[0]]) if self.n_by_n_flag else (3, 3)).tolist()) for i in n_list]
@@ -555,7 +555,7 @@ class DiagonalARCEnv(AbstractARCEnv):
                 ex_out_list = [np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list]
                 with open(f'./logdir/{self.log_dir}/eval_diagonal.pkl', 'wb') as f:
                     pickle.dump([ex_in_list, ex_out_list], f, pickle.HIGHEST_PROTOCOL)
-            with open(f'eval_diagonal.pkl', 'rb') as f: # with open(f'./logdir/{self.log_dir}/eval_diagonal.pkl', 'rb') as f:
+            with open(f'./logdir/{self.log_dir}/eval_diagonal.pkl', 'rb') as f:
                 self.eval_list = pickle.load(f)
             # self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
         # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
