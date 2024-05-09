@@ -186,7 +186,7 @@ def simulate(
         obs = {k: np.stack([o[k] for o in obs]) for k in obs[0] if "log_" not in k}
 
         # 여기까지 해서 agent.metrics에 log가 기록되는데 아래를 실행시킬때 해당 log를 json파일에 저장하고 메모리에서 지움.
-        action, agent_state = agent(obs, done, agent_state)
+        action, agent_state = agent(obs, done, agent_state, log_step=log_step)
         # 원본 isinstance(action, dict)은 아래와 같음 
         # if isinstance(action, dict):
         
