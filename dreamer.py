@@ -238,7 +238,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(3,3), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, few_shot=config.few_shot, log_dir=config.logdir.split('/')[-1], num_func=config.num_func, color_permute=config.color_permute, submit_flag=config.submit_flag, acc_flag=config.acc_flag, max_trial=config.max_trial, oracle_reward=config.oracle_reward)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(30,30), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, config=config)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -260,9 +260,9 @@ def make_env(config, mode, id):
 
 
 def main(config):
-    wandb.init(project=config.wandb_project_name)
-    wandb.config.update(config)
-    wandb.run.name = config.logdir.split('/')[-1]
+    # wandb.init(project=config.wandb_project_name)
+    # wandb.config.update(config)
+    # wandb.run.name = config.logdir.split('/')[-1]
 
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:
@@ -282,6 +282,9 @@ def main(config):
     step = count_steps(config.traindir)
     # step in logger is environmental step
     logger = tools.Logger(logdir, config.action_repeat * step)
+
+    if not os.path.exists('pretrain_model'):
+        os.makedirs('pretrain_model')
 
     print("Create envs.")
     if config.offline_traindir:
@@ -399,11 +402,20 @@ def main(config):
     ).to(config.device)
     # wandb.watch(agent)
     agent.requires_grad_(requires_grad=False)
+
+    # 아래는 원본
     if (logdir / "latest.pt").exists():
         checkpoint = torch.load(logdir / "latest.pt")
         agent.load_state_dict(checkpoint["agent_state_dict"])
         tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
         agent._should_pretrain._once = False
+
+    # 아래와 같이 바꿈
+    # if config.pretrain_model != '':
+    #     checkpoint = torch.load(config.pretrain_model)
+    #     agent.load_state_dict(checkpoint["agent_state_dict"])
+    #     tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
+    #     agent._should_pretrain._once = False
     
     log_model_loss = -1
     log_eval_return = -1 
@@ -436,7 +448,7 @@ def main(config):
                     "agent_state_dict": agent.state_dict(),
                     "optims_state_dict": tools.recursively_collect_optim_state_dict(agent),
                 }
-                torch.save(items_to_save, logdir / "best.pt")
+                torch.save(items_to_save, f"pretrain_model/{config.task_index}_best.pt")
 
 
         print("Start training.")

@@ -18,6 +18,7 @@ from typing import Dict,Optional,Union,Callable,List, Tuple, SupportsFloat, Supp
 from functools import wraps
 from numpy import ma
 import json
+import pickle
 
 
 class EntireSelectionLoader(ARCLoader):
@@ -71,32 +72,35 @@ def chang_color_permute(state):
 def rotate_left(state):
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
     rotate_state = []
-    for  i in range(3):
+    h, w = np.array(temp_state).shape
+    for  i in range(h):
         temp = []
-        for j in range(3):
-            temp.append(temp_state[j][2-i])
+        for j in range(w):
+            temp.append(temp_state[j][w-1-i])
         rotate_state.append(temp)
     return rotate_state
 
 # rotate_right function is a clockwise rotation about the given state.
 def rotate_right(state):
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
+    h, w = np.array(temp_state).shape
     rotate_state = []
-    for  i in range(3):
+    for  i in range(h):
         temp = []
-        for j in range(3):
-            temp.append(temp_state[2-j][i])
+        for j in range(w):
+            temp.append(temp_state[w-1-j][i])
         rotate_state.append(temp)
     return rotate_state
 
 # horizontal_flip function is a flip by x-axis about the given state.
 def horizontal_flip(state):
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
+    h, w = np.array(temp_state).shape
     rotate_state = []
-    for  i in range(3):
+    for  i in range(h):
         temp = []
-        for j in range(3):
-            temp.append(temp_state[2-i][j])
+        for j in range(w):
+            temp.append(temp_state[h-1-i][j])
         rotate_state.append(temp)
     return rotate_state
 
@@ -104,10 +108,11 @@ def horizontal_flip(state):
 def vertical_flip(state):
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
     rotate_state = []
-    for  i in range(3):
+    h, w = np.array(temp_state).shape
+    for  i in range(h):
         temp = []
-        for j in range(3):
-            temp.append(temp_state[i][2-j])
+        for j in range(w):
+            temp.append(temp_state[i][w-1-j])
         rotate_state.append(temp)
     return rotate_state
 
@@ -495,17 +500,12 @@ class DiagonalARCEnv(AbstractARCEnv):
                 max_trial = -1,
                 render_mode = None, 
                 render_size = None,
-                log_dir = 'log',
-                few_shot = True,
-                num_func = 4,
-                color_permute = False,
-                submit_flag = False,
-                acc_flag = False,
-                oracle_reward = False,
-                ):
-        self.num_func = num_func
-        self.submit_flag = submit_flag
-        super().__init__(data_loader, max_grid_size, colors, max_trial, render_mode, render_size)
+                config = None,
+                ): 
+        self._config = config
+        self.num_func = config.num_func
+        self.submit_flag = config.submit_flag
+        super().__init__(data_loader, max_grid_size, colors, config.max_trial, render_mode, render_size)
         self._size = img_size
         self._resize = 'pillow'
         self.max_step = max_step
@@ -513,46 +513,51 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.train_count = 0
         self.eval_count = 0
         self.eval_list = None
-        self.few_shot = few_shot
-        self.log_dir = log_dir
-        self.color_permute = color_permute
-        self.acc_flag = acc_flag
+        self.few_shot = config.few_shot
+        self.log_dir = config.logdir.split('/')[-1]
+        self.color_permute = config.color_permute
+        self.acc_flag = config.acc_flag
         self.train_set = None
-        self.oracle_reward = oracle_reward
+        self.oracle_reward = config.oracle_reward
+        self.n_by_n_flag = config.n_by_n_flag
+        self.n_dim = [(3,3), (4,4), (5,5), (6,6)]
+        self.aug_train_num = config.aug_train_num
+        self.aug_eval_num = config.aug_eval_num
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
 
         if not self.few_shot:
-            if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.npy'):
-                ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(1000)])
-                ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-                full_list = np.stack((ex_in_list, ex_out_list))
-                np.save(f'./logdir/{self.log_dir}/train_diagonal.npy', full_list)
+            if not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.pkl') and not os.path.exists(f'./logdir/{self.log_dir}/train_diagonal.npy') :
+                if self.n_by_n_flag:
+                    n_list = [np.random.randint(0, 3, size=1).tolist() for _ in range(self.aug_train_num)]
+                    ex_in_list = [np.array(np.random.randint(0, 10, size=(self.n_dim[i[0]]) if self.n_by_n_flag else (3, 3)).tolist()) for i in n_list]
+                else:
+                    ex_in_list = [np.array(np.random.randint(0, 10, size=(self.n_dim[i[0]]) if self.n_by_n_flag else (3, 3)).tolist()) for i in range(self.aug_train_num)]
+                ex_out_list = [np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list]
+                with open(f'./logdir/{self.log_dir}/train_diagonal.pkl', 'wb') as f:
+                    pickle.dump([ex_in_list, ex_out_list], f, pickle.HIGHEST_PROTOCOL)
+            # with open(f'./logdir/{self.log_dir}/train_diagonal.pkl', 'rb') as f:
+            #     self.train_list = pickle.load(f)
             self.train_list = np.load(f'./logdir/{self.log_dir}/train_diagonal.npy')
-            self.train_set = set(map(str,self.train_list[0].tolist()))
+            self.train_set = set(map(str,self.train_list[0]))
         
         if self.acc_flag:
-            if not os.path.exists(f'./logdir/{self.log_dir}/eval_diagonal.npy'):
-                if few_shot:
-                    ex_in_list = np.array([np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for _ in range(100)])
-                    ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-                    full_list = np.stack((ex_in_list, ex_out_list))
-                    np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
-                else:
-                    ex_in_list = []
-                    for _ in range(100):
-                        while True:
-                            temp = np.random.randint(0, 10, size=(3, 3)).tolist()
-                            if str(temp) not in self.train_set:
-                                ex_in_list.append(np.array(temp))
-                                break
-                    ex_out_list = np.array([np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list])
-                    full_list = np.stack((ex_in_list, ex_out_list))
-                    np.save(f'./logdir/{self.log_dir}/eval_diagonal.npy', full_list)
+            if not os.path.exists(f'./logdir/{self.log_dir}/eval_diagonal.pkl') and not os.path.exists(f'./logdir/{self.log_dir}/eval_diagonal.npy'):
+                ex_in_list = []
+                for _ in range(self.aug_eval_num):
+                    while True:
+                        temp = np.random.randint(0, 10, size=(3, 3)).tolist() if self.n_by_n_flag else np.random.randint(0, 10, size=(3, 3)).tolist() 
+                        if str(temp) not in self.train_set:
+                            ex_in_list.append(np.array(temp))
+                            break
+                ex_out_list = [np.array(horizontal_flip(rotate_right(target))) for target in ex_in_list]
+                with open(f'./logdir/{self.log_dir}/eval_diagonal.pkl', 'wb') as f:
+                    pickle.dump([ex_in_list, ex_out_list], f, pickle.HIGHEST_PROTOCOL)
+            # with open(f'eval_diagonal.pkl', 'rb') as f: # with open(f'./logdir/{self.log_dir}/eval_diagonal.pkl', 'rb') as f:
+            #     self.eval_list = pickle.load(f)
             self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
-
         # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
         #     os.makedirs('./logdir/DiagonalARC_Log/images')
 
@@ -646,12 +651,12 @@ class DiagonalARCEnv(AbstractARCEnv):
                 else:
                     self.input_ = self.train_list[0][self.train_count] # ex_in
                     self.answer = self.train_list[1][self.train_count] # ex_out
-                    self.train_count = 0 if (self.train_count+1) % 999 == 0 else self.train_count+1
+                    self.train_count = 0 if (self.train_count+1) % self.aug_train_num == 0 else self.train_count+1
         else:
             if self.acc_flag:
                 self.input_ = self.eval_list[0][self.eval_count]
                 self.answer = self.eval_list[1][self.eval_count]
-                self.eval_count = 0 if (self.eval_count+1) % 100 == 0 else self.eval_count+1
+                self.eval_count = 0 if (self.eval_count+1) % self.aug_eval_num == 0 else self.eval_count+1
             else:
                 self.subprob_index = np.random.randint(0,len(tt_in)) if self.subprob_index is None else self.subprob_index
                 self.input_ = tt_in[self.subprob_index]

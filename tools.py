@@ -90,7 +90,8 @@ class Logger:
             #     print(1)
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
             if len({"step": step, **dict(scalars)}.keys()) > 1:
-                wandb.log({"step": step, **dict(scalars)}, step=step)
+                pass
+                # wandb.log({"step": step, **dict(scalars)}, step=step)
             if 'eval_return' in dict(scalars).keys():
                 self.eval_return = dict(scalars)['eval_return']
         for name, value in scalars:

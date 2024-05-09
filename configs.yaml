@@ -19,6 +19,7 @@ defaults:
   debug: False
   video_pred_log: True
   use_bbox: False
+  pretrain_model: False
 
   # Environment
   task: 'dmc_walker_walk'
@@ -213,18 +214,22 @@ diagonal_arc:
   # batch_size가 이해가 잘 안됨. batch_size가 episode 개수를 뜻하면 train_episodes ...
   batch_size: 64
   parallel: False # 병렬 처리, 이것을 사용하면 wandb init이 2번 됨.
-  wandb_project_name: "IJCAI-DreamerV3"
+  wandb_project_name: "IJCAI-DreamerV3-FT"
   prefill: 1_000
-  task_index: 179 # 53, 129, 380, 87, 140, 339, 322
+  task_index: 241 # 179 53, 129, 380, 87, 140, 339, 322
   few_shot: False
-  num_func: 11
+  aug_train_num: 1_000
+  num_func: 4
   color_permute: False
   steps: 300_000
   submit_flag: True
   acc_flag: True
+  n_by_n_flag: False
+  aug_eval_num: 100
   train_ratio: 3200
   max_trial: 3
-  oracle_reward: True
+  oracle_reward: True 
+  pretrain_model: "./pretrain_model/latest.pt"
 
 bbox-diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
