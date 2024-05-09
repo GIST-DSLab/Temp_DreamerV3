@@ -77,7 +77,7 @@ class Logger:
     def video(self, name, value):
         self._videos[name] = np.array(value)
 
-    def write(self, fps=False, step=False):
+    def write(self, fps=False, step=False, log_step=False):
         if not step:
             step = self.step
         scalars = list(self._scalars.items())
@@ -89,7 +89,7 @@ class Logger:
             #     print(1)
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
             if len({"step": step, **dict(scalars)}.keys()) > 1:
-                wandb.log({"step": step, **dict(scalars)}, step=step)
+                wandb.log({"step": step, **dict(scalars)}, step=log_step)
             if 'eval_return' in dict(scalars).keys():
                 self.eval_return = dict(scalars)['eval_return']
         for name, value in scalars:
@@ -309,7 +309,7 @@ def simulate(
                     # logger.write(step=logger.step)
                     
                     # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
-                    logger.write(step=log_step)
+                    logger.write(step=step, log_step=log_step)
                 else:
                     if not "eval_lengths" in locals():
                         eval_lengths = []
@@ -331,7 +331,7 @@ def simulate(
                         # logger.write(step=logger.step)
                         
                         # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
-                        logger.write(step=log_step)
+                        logger.write(step=step, log_step=log_step)
                         eval_done = True
     if is_eval:
         # keep only last item for saving memory. this cache is used for video_pred later
