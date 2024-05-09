@@ -836,15 +836,17 @@ class DiagonalARCEnv(AbstractARCEnv):
 
     def _obs(self, reward, is_first=False, is_last=False, is_terminal=False):
         state = self.current_state
-        # grid = state['grid']
-        # image = Image.open(create_img(grid)).convert('RGB')
-        # image = image.resize(self._size)
-        # image = np.array(image)
 
-        grid = torch.tensor(state['grid'])
-        bottom_pad_size = 30 - grid.shape[0]
-        right_pad_size = 30 - grid.shape[1] 
-        image = torch.nn.functional.pad(grid, (0, right_pad_size, 0, bottom_pad_size), 'constant', 0)#.unsqueeze(-1)
+        if self._config.use_image:
+            grid = state['grid']
+            image = Image.open(create_img(grid)).convert('RGB')
+            image = image.resize(self._size)
+            image = np.array(image)
+        else:
+            grid = torch.tensor(state['grid'])
+            bottom_pad_size = 30 - grid.shape[0]
+            right_pad_size = 30 - grid.shape[1] 
+            image = torch.nn.functional.pad(grid, (0, right_pad_size, 0, bottom_pad_size), 'constant', 0)#.unsqueeze(-1)
 
         return (
             {"grid": image, "is_terminal": is_terminal, "is_first": is_first},

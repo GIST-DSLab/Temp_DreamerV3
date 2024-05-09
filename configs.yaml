@@ -229,6 +229,7 @@ diagonal_arc:
   max_trial: 3
   oracle_reward: True 
   pretrain_model: ""
+  use_image: True
 
 bbox-diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
