@@ -417,15 +417,14 @@ def main(config):
     #     tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
     #     agent._should_pretrain._once = False
     
-    log_model_loss = -1
-    log_eval_return = -1 
+    eval_acc = -1
     # make sure eval will be executed once after config.steps
     while agent._step < config.steps + config.eval_every + config.prefill:
         logger.write()
         if config.eval_episode_num > 0:
             print("Start evaluation.")
             eval_policy = functools.partial(agent, training=False)
-            tools.simulate(
+            state = tools.simulate(
                 eval_policy,
                 eval_envs,
                 eval_eps,
@@ -441,9 +440,8 @@ def main(config):
                 video_pred = agent._wm.video_pred(next(eval_dataset))
                 logger.video("eval_openl", to_np(video_pred))
             # best.pt 저장을 위한 부분
-            if agent._metrics != {} and (log_model_loss == -1.0 or agent._premetrics['model_loss'] < log_model_loss) and (log_eval_return == -1 or log_eval_return > logger.eval_return):
-                log_model_loss = agent._premetrics['model_loss']
-                log_eval_return = logger.eval_return
+            if eval_acc < state[-1]:
+                eval_acc = state[-1]
                 items_to_save = {
                     "agent_state_dict": agent.state_dict(),
                     "optims_state_dict": tools.recursively_collect_optim_state_dict(agent),

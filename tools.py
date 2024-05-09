@@ -345,7 +345,7 @@ def simulate(
         while len(cache) > 1:
             # FIFO
             cache.popitem(last=False)
-    return (step - steps, episode - episodes, done, length, obs, agent_state, reward)
+    return (step - steps, episode - episodes, done, length, obs, agent_state, reward, acc_score if is_eval else 0)
 
 
 def add_to_cache(cache, id, transition):
