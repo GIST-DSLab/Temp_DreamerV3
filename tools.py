@@ -67,6 +67,7 @@ class Logger:
         self._videos = {}
         self.step = step
         self.eval_return = None
+        self.train_acc = 0 # 나중에 train acc도 볼 수 있게 만들기
 
     def scalar(self, name, value):
         self._scalars[name] = float(value)
@@ -77,7 +78,7 @@ class Logger:
     def video(self, name, value):
         self._videos[name] = np.array(value)
 
-    def write(self, fps=False, step=False, log_step=False):
+    def write(self, fps=False, step=False, log_step=False, random_flag=False):
         if not step:
             step = self.step
         scalars = list(self._scalars.items())
@@ -88,7 +89,7 @@ class Logger:
             # if 'model_loss' in scalars.keys() and scalars['model_loss'] == np.nan:
             #     print(1)
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
-            if len({"step": step, **dict(scalars)}.keys()) > 1:
+            if len({"step": step, **dict(scalars)}.keys()) > 1 and not random_flag:
                 wandb.log({"step": step, **dict(scalars)}, step=log_step)
             if 'eval_return' in dict(scalars).keys():
                 self.eval_return = dict(scalars)['eval_return']
@@ -151,6 +152,7 @@ def simulate(
     option=None,
     use_bbox=False,
     config=None,
+    random_flag=False,
 ):
     global log_step
     # initialize or unpack simulation state
@@ -263,7 +265,7 @@ def simulate(
         episode += int(done.sum())
         length += 1
         step += len(envs)
-        if not is_eval:
+        if not is_eval and not random_flag:
             log_step += config.batch_size * config.batch_length
         length *= 1 - done
         # add to cache
@@ -285,10 +287,9 @@ def simulate(
             for i in indices:
                 save_episodes(directory, {envs[i].id: cache[envs[i].id]})
                 length = len(cache[envs[i].id]["reward"]) - 1
-                if config.acc_flag and is_eval:
-                    score = 1 if cache[envs[i].id]['is_terminal'][-1] == 1 and np.array(cache[envs[i].id]["reward"])[-1] >= 1000 else 0
-                else:
-                    score = float(np.array(cache[envs[i].id]["reward"]).sum())
+                if config.acc_flag:
+                    acc_score = 1 if cache[envs[i].id]['is_terminal'][-1] == 1 and np.array(cache[envs[i].id]["reward"])[-1] >= 1000 else 0
+                score = float(np.array(cache[envs[i].id]["reward"]).sum())
                 video = cache[envs[i].id]["image"] if 'image' in cache[envs[i].id] else cache[envs[i].id]["grid"]
                 # record logs given from environments
                 for key in list(cache[envs[i].id].keys()):
@@ -305,21 +306,26 @@ def simulate(
                     logger.scalar(f"train_return", score)
                     logger.scalar(f"train_length", length)
                     logger.scalar(f"train_episodes", len(cache))
+                    # logger.scalar(f"train_accuracy", acc_score) # 나중에 train accuracy에 대해서도 log 저장하기
+
                     # 원본은 아래
                     # logger.write(step=logger.step)
                     
                     # 아래는 학습한 data_size(즉, step)을 기준으로 logging하기 위함.
-                    logger.write(step=step, log_step=log_step)
+                    logger.write(step=step, log_step=log_step, random_flag=random_flag)
                 else:
                     if not "eval_lengths" in locals():
                         eval_lengths = []
                         eval_scores = []
+                        eval_acc = []
                         eval_done = False
                     # start counting scores for evaluation
                     eval_scores.append(score)
                     eval_lengths.append(length)
+                    eval_acc.append(acc_score)
 
                     score = sum(eval_scores) / len(eval_scores)
+                    acc_score = sum(eval_acc) / len(eval_acc)
                     length = sum(eval_lengths) / len(eval_lengths)
                     logger.video(f"eval_policy", np.array(video)[None])
 
@@ -327,6 +333,7 @@ def simulate(
                         logger.scalar(f"eval_return", score)
                         logger.scalar(f"eval_length", length)
                         logger.scalar(f"eval_episodes", len(eval_scores))
+                        logger.scalar(f"eva_accuracy", acc_score)
                         # 원본은 아래
                         # logger.write(step=logger.step)
                         

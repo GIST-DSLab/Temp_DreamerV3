@@ -383,6 +383,7 @@ def main(config):
             use_bbox=True if config.use_bbox else False,
             option = {'adaptation': True},
             config=config,
+            random_flag=True,
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")
