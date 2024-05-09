@@ -404,18 +404,18 @@ def main(config):
     agent.requires_grad_(requires_grad=False)
 
     # 아래는 원본
-    if (logdir / "latest.pt").exists():
-        checkpoint = torch.load(logdir / "latest.pt")
-        agent.load_state_dict(checkpoint["agent_state_dict"])
-        tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
-        agent._should_pretrain._once = False
-
-    # 아래와 같이 바꿈
-    # if config.pretrain_model != '':
-    #     checkpoint = torch.load(config.pretrain_model)
+    # if (logdir / "latest.pt").exists():
+    #     checkpoint = torch.load(logdir / "latest.pt")
     #     agent.load_state_dict(checkpoint["agent_state_dict"])
     #     tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
     #     agent._should_pretrain._once = False
+
+    # 아래와 같이 바꿈
+    if config.pretrain_model != '':
+        checkpoint = torch.load(config.pretrain_model)
+        agent.load_state_dict(checkpoint["agent_state_dict"])
+        tools.recursively_load_optim_state_dict(agent, checkpoint["optims_state_dict"])
+        agent._should_pretrain._once = False
     
     eval_acc = -1
     # make sure eval will be executed once after config.steps
