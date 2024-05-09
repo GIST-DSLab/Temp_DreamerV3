@@ -251,7 +251,8 @@ def gen_rotate(k=1):
     assert 0<k<4
 
     def Rotate(state):
-        xmin, xmax, ymin, ymax = _init_objsel(state,np.ones(np.array(state['grid']).shape))
+        sel = np.pad(np.ones((state['grid_dim'])), ((0,state['grid'].shape[0]-state['grid_dim'][0]), (0, state['grid'].shape[1]-state['grid_dim'][1])))
+        xmin, xmax, ymin, ymax = _init_objsel(state, sel)
         if xmin is None:
             return
         
@@ -311,7 +312,7 @@ def gen_flip(axis:str = "H"):
     flipfunc = flips[axis]
 
     def Flip(state):
-        sel = np.ones((state['input'].shape))
+        sel = np.pad(np.ones((state['grid_dim'])), ((0,state['grid'].shape[0]-state['grid_dim'][0]), (0, state['grid'].shape[1]-state['grid_dim'][1])), 'constant', constant_values=0).astype(dtype=np.int8)
         valid,_,_,_ = _init_objsel(state,sel)
         if valid is None:
             return
@@ -338,7 +339,8 @@ def reset_sel(function):
     '''
     @wraps(function)
     def wrapper(state, **kwargs):
-        state['selected'] = np.ones(state['input'].shape, dtype=np.int8)
+        sel = np.pad(np.ones((state['input_dim'])), ((0,state['input'].shape[0]-state['input_dim'][0]), (0, state['input'].shape[1]-state['input_dim'][1])), 'constant', constant_values=0).astype(dtype=np.int8)
+        state['selected'] = sel
         state['object_states']['active'][0] = 0
         
         return function(state, **kwargs)
@@ -355,7 +357,7 @@ def gen_copy(source="I"):
     assert source in ["I", "O"], "Invalid Source grid"
     srckey = 'input' if source=="I" else 'grid'
     def Copy(state):
-        sel = np.ones((state['input'].shape))
+        sel = np.pad(np.ones((state['input_dim'])), ((0,state['input'].shape[0]-state['input_dim'][0]), (0, state['input'].shape[1]-state['input_dim'][1])), 'constant', constant_values=0).astype(dtype=np.int8)
         
         if not np.any(sel>0): #nothing to copy
             return
@@ -422,7 +424,7 @@ def gen_color(color: SupportsInt) -> Callable:
     Class State Requirements (key: type) : (`grid`: NDArray)
     '''
     def colorf(state) -> None:
-        sel = np.ones((state['input'].shape))
+        sel = np.pad(np.ones((state['input_dim'])), ((0,state['input'].shape[0]-state['input_dim'][0]), (0, state['input'].shape[1]-state['input_dim'][1])), 'constant', constant_values=0).astype(dtype=np.int8)
         if not np.any(sel):
             return
         state['grid'] = ma.array(state['grid'], mask=sel).filled(fill_value=color)
@@ -443,7 +445,7 @@ def gen_move(d=0):
     dirY = [0, 0, +1, -1]
 
     def Move(state):
-        sel = np.ones((np.array(state['grid']).shape))
+        sel = np.pad(np.ones((state['grid_dim'])), ((0,state['grid'].shape[0]-state['grid_dim'][0]), (0, state['grid'].shape[1]-state['grid_dim'][1])), 'constant', constant_values=0).astype(dtype=np.int8)
         par,_,_,_ = _init_objsel(state,sel)
 
         if par is None:
