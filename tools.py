@@ -164,7 +164,7 @@ def simulate(
         agent_state = None
         reward = [0] * len(envs)
     else:
-        step, episode, done, length, obs, agent_state, reward = state
+        step, episode, done, length, obs, agent_state, reward, _ = state
     while (steps and step < steps) or (episodes and episode < episodes):
         # reset envs if necessary
         if done.any():

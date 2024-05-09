@@ -424,7 +424,7 @@ def main(config):
         if config.eval_episode_num > 0:
             print("Start evaluation.")
             eval_policy = functools.partial(agent, training=False)
-            state = tools.simulate(
+            result = tools.simulate(
                 eval_policy,
                 eval_envs,
                 eval_eps,
@@ -440,8 +440,8 @@ def main(config):
                 video_pred = agent._wm.video_pred(next(eval_dataset))
                 logger.video("eval_openl", to_np(video_pred))
             # best.pt 저장을 위한 부분
-            if eval_acc < state[-1]:
-                eval_acc = state[-1]
+            if eval_acc < result[-1]:
+                eval_acc = result[-1]
                 items_to_save = {
                     "agent_state_dict": agent.state_dict(),
                     "optims_state_dict": tools.recursively_collect_optim_state_dict(agent),
