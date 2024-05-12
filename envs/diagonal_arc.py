@@ -525,26 +525,27 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.aug_eval_num = config.aug_eval_num
         self.aug_func = {179: self.aug_179, 241: self.aug_241, 150: self.aug_150, 380: self.aug_380, 53: self.aug_53, 385: self.aug_385}
         self.task_index = config.task_index
+        self.dataset_dir = config.dataset_dir
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
 
         if not self.few_shot:
-            if not os.path.exists(f'./logdir/{self.log_dir}/train_{self.task_index}.pkl') :
+            if not os.path.exists(f'{self.dataset_dir}/train_{self.task_index}.pkl') :
                 self.train_list = self.aug_func[config.task_index](mode='train')
-                with open(f'./logdir/{self.log_dir}/train_{self.task_index}.pkl', 'wb') as f:
+                with open(f'{self.dataset_dir}/train_{self.task_index}.pkl', 'wb') as f:
                     pickle.dump(self.train_list, f, pickle.HIGHEST_PROTOCOL)
             else:
-                with open(f'./logdir/{self.log_dir}/train_{self.task_index}.pkl', 'rb') as f:
+                with open(f'{self.dataset_dir}/train_{self.task_index}.pkl', 'rb') as f:
                     self.train_list = pickle.load(f)
         if self.acc_flag:
-            if not os.path.exists(f'./logdir/{self.log_dir}/eval_{self.task_index}.pkl'):                 
+            if not os.path.exists(f'{self.dataset_dir}/eval_{self.task_index}.pkl'):                 
                 self.eval_list = self.aug_func[config.task_index](mode='eval', train_set=None if self.few_shot else set(map(str,self.train_list[0])))
-                with open(f'./logdir/{self.log_dir}/eval_{self.task_index}.pkl', 'wb') as f:
+                with open(f'{self.dataset_dir}/eval_{self.task_index}.pkl', 'wb') as f:
                     pickle.dump(self.eval_list, f, pickle.HIGHEST_PROTOCOL)
             else:
-                with open(f'./logdir/{self.log_dir}/eval_{self.task_index}.pkl', 'rb') as f:
+                with open(f'{self.dataset_dir}/eval_{self.task_index}.pkl', 'rb') as f:
                     self.eval_list = pickle.load(f)
             # self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
         # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
@@ -622,7 +623,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         
         return [input_list, output_list]
 
-    def aug_53(self, mode, train_set=None): # 나중에 구현하기
+    def aug_53(self, mode, train_set=None): # TODO: 나중에 구현하기
         if mode == 'train':
             input_list = [np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for i in range(self.aug_train_num)]
             output_list = [np.array(rotate_left(target)) for target in input_list]
@@ -639,7 +640,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         
         return [input_list, output_list]
 
-    def aug_385(self, mode, train_set=None): # 나중에 구현하기
+    def aug_385(self, mode, train_set=None): # TODO: 나중에 구현하기
         if mode == 'train':
             target_input_list = [np.array(np.random.randint(0, 10, size=(5, 4)).tolist()) for i in range(self.aug_train_num)] 
             output_list = [np.array(rotate_left(target)) for target in input_list]
@@ -656,7 +657,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         
         return [input_list, output_list]
     
-    def aug_322(self, mode, train_set=None): # 나중에 구현하기
+    def aug_322(self, mode, train_set=None): # TODO: 나중에 구현하기
         if mode == 'train':
             input_list = [np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for i in range(self.aug_train_num)]
             output_list = [np.array(rotate_left(target)) for target in input_list]

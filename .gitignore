@@ -144,5 +144,3 @@ wandb/*
 
 mesa-18.3.3/*
 *.pt
-*.pkl
-*.pickle

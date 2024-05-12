@@ -238,7 +238,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(30,30), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, config=config)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(10,10), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, config=config)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -270,6 +270,7 @@ def main(config):
     logdir = pathlib.Path(config.logdir).expanduser()
     config.traindir = config.traindir or logdir / "train_eps"
     config.evaldir = config.evaldir or logdir / "eval_eps"
+    config.dataset_dir = config.dataset_dir or "dataset"
     config.steps //= config.action_repeat
     config.eval_every //= config.action_repeat
     config.log_every //= config.action_repeat
