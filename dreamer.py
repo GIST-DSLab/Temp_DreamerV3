@@ -260,9 +260,9 @@ def make_env(config, mode, id):
 
 
 def main(config):
-    # wandb.init(project=config.wandb_project_name)
-    # wandb.config.update(config)
-    # wandb.run.name = config.logdir.split('/')[-1]
+    wandb.init(project=config.wandb_project_name)
+    wandb.config.update(config)
+    wandb.run.name = config.logdir.split('/')[-1]
 
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:
@@ -275,6 +275,7 @@ def main(config):
     config.eval_every //= config.action_repeat
     config.log_every //= config.action_repeat
     config.time_limit //= config.action_repeat
+    config.train_ratio = config.batch_size * config.batch_length
 
     print("Logdir", logdir)
     logdir.mkdir(parents=True, exist_ok=True)
@@ -387,6 +388,7 @@ def main(config):
             use_bbox=True if config.use_bbox else False,
             option = {'adaptation': True},
             config=config,
+            random_flag=True,
         )
         logger.step += prefill * config.action_repeat
         print(f"Logger: ({logger.step} steps).")

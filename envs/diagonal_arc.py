@@ -92,8 +92,8 @@ def rotate_right(state):
         rotate_state.append(temp)
     return rotate_state
 
-# horizontal_flip function is a flip by x-axis about the given state.
-def horizontal_flip(state):
+# vertical_flip function is a flip by y-axis about the given state.
+def vertical_flip(state):
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
     h, w = np.array(temp_state).shape
     rotate_state = []
@@ -104,8 +104,8 @@ def horizontal_flip(state):
         rotate_state.append(temp)
     return rotate_state
 
-# vertical_flip function is a flip by y-axis about the given state.
-def vertical_flip(state):
+# horizontal_flip function is a flip by x-axis about the given state.
+def horizontal_flip(state): 
     temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
     rotate_state = []
     h, w = np.array(temp_state).shape
@@ -115,6 +115,12 @@ def vertical_flip(state):
             temp.append(temp_state[i][w-1-j])
         rotate_state.append(temp)
     return rotate_state
+
+def move_down(state):
+    temp_state = copy.deepcopy(state['grid'] if 'grid' in state else state)
+    new_temp_state = np.zeros((temp_state.shape[0]+1,temp_state.shape[1]))
+    new_temp_state[1:,:] = temp_state 
+    return new_temp_state[:-1,:]
 
 def _get_bbox(img: NDArray) -> Tuple[int,int,int,int]:
     '''
@@ -554,7 +560,7 @@ class DiagonalARCEnv(AbstractARCEnv):
     def aug_179(self, mode, train_set=None):
         if mode == 'train':
             input_list = [np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for i in range(self.aug_train_num)]
-            output_list = [np.array(horizontal_flip(rotate_right(target))) for target in input_list]
+            output_list = [np.array(vertical_flip(rotate_right(target))) for target in input_list]
         
         if mode == 'eval':
             input_list = []
@@ -564,7 +570,7 @@ class DiagonalARCEnv(AbstractARCEnv):
                     if train_set == None or str(temp) not in train_set:
                         input_list.append(np.array(temp))
                         break
-            output_list = [np.array(horizontal_flip(rotate_right(target))) for target in input_list]
+            output_list = [np.array(vertical_flip(rotate_right(target))) for target in input_list]
         
         return [input_list, output_list]
 
@@ -573,7 +579,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         if mode == 'train':
             n_list = [np.random.randint(0, 3, size=1).tolist() for _ in range(self.aug_train_num)]
             input_list = [np.array(np.random.randint(0, 10, size=(n_dim[i[0]])).tolist()) for i in n_list]
-            output_list = [np.array(horizontal_flip(rotate_right(target))) for target in input_list]
+            output_list = [np.array(vertical_flip(rotate_right(target))) for target in input_list]
 
         if mode == 'eval':
             input_list = []
@@ -583,7 +589,7 @@ class DiagonalARCEnv(AbstractARCEnv):
                     if train_set == None or str(temp) not in train_set:
                         input_list.append(np.array(temp))
                         break
-            output_list = [np.array(horizontal_flip(rotate_right(target))) for target in input_list]
+            output_list = [np.array(vertical_flip(rotate_right(target))) for target in input_list]
         
         return [input_list, output_list]
 
@@ -609,7 +615,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         if mode == 'train':
             n_list = [np.random.randint(0, 3, size=1).tolist() for _ in range(self.aug_train_num)]
             input_list = [np.array(np.random.randint(0, 10, size=(n_dim[i[0]])).tolist()) for i in n_list]
-            output_list = [np.array(vertical_flip(target)) for target in input_list]
+            output_list = [np.array(horizontal_flip(target)) for target in input_list]
 
         if mode == 'eval':
             input_list = []
@@ -619,15 +625,15 @@ class DiagonalARCEnv(AbstractARCEnv):
                     if train_set == None or str(temp) not in train_set:
                         input_list.append(np.array(temp))
                         break
-            output_list = [np.array(vertical_flip(target)) for target in input_list]
+            output_list = [np.array(horizontal_flip(target)) for target in input_list]
         
         return [input_list, output_list]
 
-    def aug_53(self, mode, train_set=None): # TODO: 나중에 구현하기
+    # TODO move down 되는지 확인하기 -> 그냥 SOLAR 형식에 맞춰서 증강하기
+    def aug_53(self, mode, train_set=None):
         if mode == 'train':
-            input_list = [np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for i in range(self.aug_train_num)]
-            output_list = [np.array(rotate_left(target)) for target in input_list]
-        
+            input_list = [np.concatenate((np.random.randint(0, 10, size=(2, 3)),np.zeros((1,3)))) for i in range(self.aug_train_num)]
+            output_list = [np.array(move_down(target)) for target in input_list]
         if mode == 'eval':
             input_list = []
             for _ in range(self.aug_eval_num):
@@ -640,7 +646,8 @@ class DiagonalARCEnv(AbstractARCEnv):
         
         return [input_list, output_list]
 
-    def aug_385(self, mode, train_set=None): # TODO: 나중에 구현하기
+    # TODO: 10x4 grid, 6~10번째 행에 대해서 랜덤하게 생성한 후 copyO -> paste-> FlipV를 적용하면 될 듯
+    def aug_385(self, mode, train_set=None):
         if mode == 'train':
             target_input_list = [np.array(np.random.randint(0, 10, size=(5, 4)).tolist()) for i in range(self.aug_train_num)] 
             output_list = [np.array(rotate_left(target)) for target in input_list]
@@ -657,7 +664,13 @@ class DiagonalARCEnv(AbstractARCEnv):
         
         return [input_list, output_list]
     
-    def aug_322(self, mode, train_set=None): # TODO: 나중에 구현하기
+    '''
+    TODO: 3x3 grid, 
+    1. 먼저 몇 개의 점을 찍을지 랜던하게 설정하기
+    2. 각 열의 랜덤한 위치에 랜덤한 색의 점을 찍기(점은 1에서 정한 만큼만 찍을 수 있으면 한 열당 1개의 점만 찍힐 수 있음, 이때 검정색 점은 안 찍히도록 하기)
+    3. 각 열에서 찍힌 점 중 가장 높은 위치(1행에 가까울 수록 높은 위치, 상단이 1행)에 찍힌 점을 기준으로 CopyO → Paste → MoveD을 [4-높은 위치 행의 값]번 반복해주기
+    '''
+    def aug_322(self, mode, train_set=None): 
         if mode == 'train':
             input_list = [np.array(np.random.randint(0, 10, size=(3, 3)).tolist()) for i in range(self.aug_train_num)]
             output_list = [np.array(rotate_left(target)) for target in input_list]

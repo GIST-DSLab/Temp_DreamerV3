@@ -91,7 +91,7 @@ class Logger:
             f.write(json.dumps({"step": step, **dict(scalars)}) + "\n")
             if len({"step": step, **dict(scalars)}.keys()) > 1:
                 pass
-                # wandb.log({"step": step, **dict(scalars)}, step=step)
+                wandb.log({"step": step, **dict(scalars)}, step=step)
             if 'eval_return' in dict(scalars).keys():
                 self.eval_return = dict(scalars)['eval_return']
         for name, value in scalars:
@@ -153,6 +153,7 @@ def simulate(
     option=None,
     use_bbox=False,
     config=None,
+    random_flag=False,
 ):
     global log_step
     # initialize or unpack simulation state
@@ -265,8 +266,10 @@ def simulate(
         episode += int(done.sum())
         length += 1
         step += len(envs)
+        # if not is_eval and not random_flag:
         if not is_eval:
             log_step += len(envs)
+            # log_step += config.train_ratio 
         length *= 1 - done
         # add to cache
         for a, result, env in zip(action, results, envs):

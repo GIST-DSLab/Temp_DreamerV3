@@ -217,7 +217,7 @@ diagonal_arc:
   parallel: False # 병렬 처리, 이것을 사용하면 wandb init이 2번 됨.
   wandb_project_name: "IJCAI-DreamerV3-FT"
   prefill: 1_000
-  task_index: 241 # 179 53, 129, 380, 87, 140, 339, 322, 241
+  task_index: 150 # 179 53, 129, 380, 87, 140, 339, 322, 241
   few_shot: False
   aug_train_num: 1_000
   num_func: 4
@@ -229,7 +229,7 @@ diagonal_arc:
   train_ratio: 3200
   max_trial: 3
   oracle_reward: True 
-  pretrain_model: ""
+  pretrain_model: "pretrain_model/179_best.pt"
   use_image: False
 
 bbox-diagonal_arc:
