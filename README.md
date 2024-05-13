@@ -59,6 +59,11 @@ sudo dpkg -i ./mesa_18.3.3-0.deb || true
 sudo apt install -f
 ```
 
+error in gym setup command: 'extras_require' must be a dictionary whose values are strings or lists of strings containing valid project/version requirement specifiers.
+```
+pip install setuptools==65.5.0 pip==21 
+```
+
 ## Acknowledgments
 This code is heavily inspired by the following works:
 - danijar's Dreamer-v3 jax implementation: https://github.com/danijar/dreamerv3
