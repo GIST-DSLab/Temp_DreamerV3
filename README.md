@@ -64,6 +64,11 @@ error in gym setup command: 'extras_require' must be a dictionary whose values a
 pip install setuptools==65.5.0 pip==21 
 ```
 
+TypeError: deprecated() got an unexpected keyword argument 'name'
+```
+pip install pyOpenSSL --upgrade
+```
+
 ## Acknowledgments
 This code is heavily inspired by the following works:
 - danijar's Dreamer-v3 jax implementation: https://github.com/danijar/dreamerv3
