@@ -350,7 +350,7 @@ class MultiEncoder(nn.Module):
         symlog_inputs,
     ):
         super(MultiEncoder, self).__init__()
-        excluded = ("is_first", "is_last", "is_terminal", "reward", 'obs_states', 'grid_dim')
+        excluded = ("is_first", "is_last", "is_terminal", "reward", 'obs_states', 'grid_dim', 'example_input1_dim', 'example_input2_dim', 'example_input3_dim', 'example_output1_dim', 'example_output2_dim', 'example_output3_dim')
         shapes = {
             k: v
             for k, v in shapes.items()
@@ -379,7 +379,8 @@ class MultiEncoder(nn.Module):
             # 원본 코드 - CNN 잘 동작함
             # input_size = sum([sum(v) for v in self.mlp_shapes.values()])
             # 에러 때문에 수정한 코드 - MLP
-            input_size = 900 if 'grid' in self.mlp_shapes else sum([reduce(lambda x, y: x * y, v) for v in self.mlp_shapes.values()])
+            # input_size = 900 if 'grid' in self.mlp_shapes else sum([reduce(lambda x, y: x * y, v) for v in self.mlp_shapes.values()])
+            input_size = sum([reduce(lambda x, y: x * y, v) for v in self.mlp_shapes.values()])
             self._mlp = MLP(
                 input_size,
                 None,
@@ -416,12 +417,16 @@ class MultiEncoder(nn.Module):
 
 
             # bbox
-            if len(obs) == 8:
-                # print(len(obs['trials_remain']))
+            if len(obs) == 8 or len(obs) == 14:
                 inputs = torch.cat([obs[k].view(obs[k].size(0), obs[k].size(1), -1) for k in self.mlp_shapes], -1)
             else:
                 inputs = torch.cat([obs[k].view(obs[k].size(0), -1) for k in self.mlp_shapes], -1)
 
+            # flattened_tensors = [obs[k].view(-1) for k in self.mlp_shapes]
+            # inputs = torch.cat(flattened_tensors, dim=-1)
+            
+            # if inputs.size()[0] != 1:
+            #     print(1)
             outputs.append(self._mlp(inputs.to('cuda')))
         outputs = torch.cat(outputs, -1)
         return outputs
@@ -447,7 +452,7 @@ class MultiDecoder(nn.Module):
         outscale,
     ):
         super(MultiDecoder, self).__init__()
-        excluded = ("is_first", "is_last", "is_terminal", 'grid_dim')
+        excluded = ("is_first", "is_last", "is_terminal", 'grid_dim', 'example_input1_dim', 'example_input2_dim', 'example_input3_dim', 'example_output1_dim', 'example_output2_dim', 'example_output3_dim')
         shapes = {k: v for k, v in shapes.items() if k not in excluded}
         self.cnn_shapes = {
             k: v for k, v in shapes.items() if len(v) == 3 and re.match(cnn_keys, k)
@@ -717,9 +722,7 @@ class MLP(nn.Module):
         if isinstance(self._shape, dict):
             self.mean_layer = nn.ModuleDict()
             for name, shape in self._shape.items():
-                # if name == 'grid':
-                #     print(1)
-                self.mean_layer[name] = nn.Linear(inp_dim, np.prod(shape) if name != 'grid' else 900) 
+                self.mean_layer[name] = nn.Linear(inp_dim, np.prod(shape)) # if name != 'grid' else 900) 
             self.mean_layer.apply(tools.uniform_weight_init(outscale))
             if self._std == "learned":
                 assert dist in ("tanh_normal", "normal", "trunc_normal", "huber"), dist

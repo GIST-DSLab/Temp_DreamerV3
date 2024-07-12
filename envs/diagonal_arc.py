@@ -1,5 +1,6 @@
 from arcle.envs.arcenv import AbstractARCEnv
 from arcle.loaders import ARCLoader
+from gymnasium import spaces
 from gymnasium.core import ObsType, ActType
 import numpy as np
 import matplotlib.pyplot as plt
@@ -514,6 +515,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.num_func = config.num_func
         self.submit_flag = config.submit_flag
         super().__init__(data_loader, max_grid_size, colors, config.max_trial, render_mode, render_size)
+        self.max_grid_size = max_grid_size
         self._size = img_size
         self._resize = 'pillow'
         self.max_step = max_step
@@ -532,30 +534,46 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.aug_func = {179: self.aug_179, 241: self.aug_241, 150: self.aug_150, 380: self.aug_380, 53: self.aug_53, 385: self.aug_385}
         self.task_index = config.task_index
         self.dataset_dir = config.dataset_dir
+        self.use_example = config.use_example
+        self.RQ4_eval_mode = config.RQ4_eval_mode
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
         # self.current_action_case = ''
 
         if not self.few_shot:
-            if not os.path.exists(f'{self.dataset_dir}/train_{self.task_index}.pkl') :
+            if not os.path.exists(f'{self.dataset_dir}/train_{self.task_index}.pkl') and type(self.task_index) == int:
                 self.train_list = self.aug_func[config.task_index](mode='train')
                 with open(f'{self.dataset_dir}/train_{self.task_index}.pkl', 'wb') as f:
                     pickle.dump(self.train_list, f, pickle.HIGHEST_PROTOCOL)
             else:
-                with open(f'{self.dataset_dir}/train_{self.task_index}.pkl', 'rb') as f:
-                    self.train_list = pickle.load(f)
+                if type(self.task_index) == int:
+                    with open(f'{self.dataset_dir}/train_{self.task_index}.pkl', 'rb') as f:
+                        self.train_list = pickle.load(f)
+                else:
+                    with open(f'{self.dataset_dir}/new_train_A-B_1000.pkl', 'rb') as f:
+                        self.train_list = pickle.load(f)
         if self.acc_flag:
-            if not os.path.exists(f'{self.dataset_dir}/eval_{self.task_index}.pkl'):                 
+            if not os.path.exists(f'{self.dataset_dir}/eval_{self.task_index}.pkl') and type(self.task_index) == int:                 
                 self.eval_list = self.aug_func[config.task_index](mode='eval', train_set=None if self.few_shot else set(map(str,self.train_list[0])))
                 with open(f'{self.dataset_dir}/eval_{self.task_index}.pkl', 'wb') as f:
                     pickle.dump(self.eval_list, f, pickle.HIGHEST_PROTOCOL)
             else:
-                with open(f'{self.dataset_dir}/eval_{self.task_index}.pkl', 'rb') as f:
-                    self.eval_list = pickle.load(f)
-            # self.eval_list = np.load(f'./logdir/{self.log_dir}/eval_diagonal.npy')
-        # if not os.path.exists('./logdir/DiagonalARC_Log/images'):
-        #     os.makedirs('./logdir/DiagonalARC_Log/images')
+                if type(self.task_index) == int: 
+                    with open(f'{self.dataset_dir}/eval_{self.task_index}.pkl', 'rb') as f:
+                        self.eval_list = pickle.load(f)
+                else:
+                    target_file = None
+                    if self.task_index == 'RQ4':
+                        if self.RQ4_eval_mode == 'A':
+                            target_file = f'{self.dataset_dir}/new_eval_B.pkl' 
+                        elif self.RQ4_eval_mode == 'B':
+                            target_file = f'{self.dataset_dir}/new_eval_B.pkl' 
+                    else:
+                        target_file = f'{self.dataset_dir}/new_eval_AB.pkl' 
+                    with open(target_file, 'rb') as f:
+                        self.eval_list = pickle.load(f)
+
 
     def aug_179(self, mode, train_set=None):
         if mode == 'train':
@@ -726,7 +744,34 @@ class DiagonalARCEnv(AbstractARCEnv):
         # #MLP
         # spaces["grid"] = gym.spaces.Box(0, 9, (30, 30) , dtype=np.uint8)
         # return gym.spaces.Dict(spaces)
-         return super().create_state_space()
+         return super().create_state_space() if not self.use_example else spaces.Dict({
+            "trials_remain": spaces.Box(-1, self.max_trial, shape=(1,), dtype=np.int8),
+            "terminated": spaces.MultiBinary(1), # int8
+
+            "input": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "input_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "grid": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "grid_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "example_input1": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_input1_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "example_input2": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_input2_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+            
+            "example_input3": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_input3_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "example_output1": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_output1_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "example_output2": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_output2_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+
+            "example_output3": spaces.Box(0,self.colors,(self.H,self.W),dtype=np.int8),
+            "example_output3_dim": spaces.Box(low=np.array([1,1]), high=np.array([self.H,self.W]), dtype=np.int8),
+        })
     
     @observation_space.setter
     def observation_space(self, observation_space):
@@ -775,13 +820,26 @@ class DiagonalARCEnv(AbstractARCEnv):
                     self.input_ = chang_color_permute(ex_in[self.subprob_index])
                     self.answer = chang_color_permute(ex_out[self.subprob_index])
                 else:
-                    self.input_ = self.train_list[0][self.train_count] # ex_in
-                    self.answer = self.train_list[1][self.train_count] # ex_out
+                    if self.use_example:
+                        self.example_input = self.train_list['example'][0][self.train_count]
+                        self.example_output = self.train_list['example'][1][self.train_count]
+                        self.input_ = self.train_list['grid'][self.train_count] # ex_in
+                        self.answer = self.train_list['answer'][self.train_count] 
+                    else:
+                        self.input_ = self.train_list[0][self.train_count] # ex_in
+                        self.answer = self.train_list[1][self.train_count] # ex_out
+
                     self.train_count = 0 if (self.train_count+1) % self.aug_train_num == 0 else self.train_count+1
         else:
             if self.acc_flag:
-                self.input_ = self.eval_list[0][self.eval_count]
-                self.answer = self.eval_list[1][self.eval_count]
+                if self.use_example:
+                        self.example_input = self.train_list['example'][0][self.eval_count]
+                        self.example_output = self.train_list['example'][1][self.eval_count]
+                        self.input_ = self.train_list['grid'][self.eval_count] # ex_in
+                        self.answer = self.train_list['answer'][self.eval_count] # ex_out
+                else:
+                    self.input_ = self.eval_list[0][self.eval_count]
+                    self.answer = self.eval_list[1][self.eval_count]
                 self.eval_count = 0 if (self.eval_count+1) % self.aug_eval_num == 0 else self.eval_count+1
             else:
                 self.subprob_index = np.random.randint(0,len(tt_in)) if self.subprob_index is None else self.subprob_index
@@ -858,12 +916,31 @@ class DiagonalARCEnv(AbstractARCEnv):
             image = np.array(image)
         else:
             grid = torch.tensor(state['grid'])
-            bottom_pad_size = 30 - grid.shape[0]
-            right_pad_size = 30 - grid.shape[1] 
+            bottom_pad_size = self.max_grid_size[0] - grid.shape[0]
+            right_pad_size = self.max_grid_size[1] - grid.shape[1] 
             image = torch.nn.functional.pad(grid, (0, right_pad_size, 0, bottom_pad_size), 'constant', 0)#.unsqueeze(-1)
+
+        if self.use_example:
+            image_example_input = []
+            image_example_output = []
+            for example_input ,example_output in zip(self.example_input, self.example_output):
+                input_bottom_pad_size = self.max_grid_size[0] - torch.tensor(example_input).shape[0]
+                input_right_pad_size = self.max_grid_size[1] - torch.tensor(example_input).shape[1] 
+
+                output_bottom_pad_size = self.max_grid_size[0] - torch.tensor(example_output).shape[0]
+                output_right_pad_size = self.max_grid_size[1] - torch.tensor(example_output).shape[1] 
+
+                image_example_input.append(torch.nn.functional.pad(torch.tensor(example_input), (0, input_right_pad_size, 0, input_bottom_pad_size), 'constant', 0))
+                image_example_output.append(torch.nn.functional.pad(torch.tensor(example_output), (0, output_right_pad_size, 0, output_bottom_pad_size), 'constant', 0))
 
         return (
             {"grid": image, "is_terminal": is_terminal, "is_first": is_first},
+            reward,
+            is_last,
+            {},
+        ) if not self.use_example else(
+            {"grid": image, "is_terminal": is_terminal, "is_first": is_first, 
+             'example_input1': image_example_input[0], 'example_output1': image_example_output[0], 'example_input2': image_example_input[1], 'example_output2': image_example_output[1], 'example_input3': image_example_input[2], 'example_output3': image_example_output[2]},
             reward,
             is_last,
             {},

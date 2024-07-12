@@ -238,7 +238,7 @@ def make_env(config, mode, id):
     elif suite == "diagonal":
         from envs.diagonal_arc import DiagonalARCEnv, EntireSelectionLoader
 
-        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index), max_grid_size=(10,10), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, config=config)
+        env = DiagonalARCEnv([64, 64],data_loader=EntireSelectionLoader(data_index=config.task_index if type(config.task_index) == int else 179), max_grid_size=(config.max_grid_size,config.max_grid_size), colors=10, max_step = config.batch_length, render_mode ="ansi", render_size= None, config=config)
         # env = DiagonalARCEnv([64, 64],data_loader=None, max_grid_size=(3,3), colors=10, max_step = 2, render_mode ="ansi", render_size= None)
         env = wrappers.OneHotAction(env)
     elif suite == "bbox-diagonal":
@@ -260,9 +260,9 @@ def make_env(config, mode, id):
 
 
 def main(config):
-    wandb.init(project=config.wandb_project_name)
-    wandb.config.update(config)
-    wandb.run.name = config.logdir.split('/')[-1]
+    # wandb.init(project=config.wandb_project_name)
+    # wandb.config.update(config)
+    # wandb.run.name = config.logdir.split('/')[-1]
 
     tools.set_seed_everywhere(config.seed)
     if config.deterministic_run:

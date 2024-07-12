@@ -203,9 +203,11 @@ diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
   action_repeat: 1
   encoder:
-    {mlp_keys: 'grid', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
+    # {mlp_keys: 'grid', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
+    {mlp_keys: 'grid|example_input1|example_input2|example_input3|example_output1|example_output2|example_output3', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
   decoder:
-    {mlp_keys: 'grid', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
+    # {mlp_keys: 'grid', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
+    {mlp_keys: 'grid|example_input1|example_input2|example_input3|example_output1|example_output2|example_output3', cnn_keys: '$^', act: 'SiLU', norm: True,  mlp_layers: 5, mlp_units: 1024}
   # video_pred_log가 뭐하는 거지? 현재 이거를 true로 해서 사용하면 agent simulation시 video_pred 내에서 에러가 계속발생함.
   video_pred_log: False
   batch_length: 50
@@ -215,9 +217,9 @@ diagonal_arc:
   # batch_size가 이해가 잘 안됨. batch_size가 episode 개수를 뜻하면 train_episodes ...
   batch_size: 64
   parallel: False # 병렬 처리, 이것을 사용하면 wandb init이 2번 됨.
-  wandb_project_name: "IJCAI-DreamerV3-FT"
+  wandb_project_name: "IJCAI-DreamerV3"
   prefill: 1_000
-  task_index: 150 # 179 53, 129, 380, 87, 140, 339, 322, 241
+  task_index: 179 #53, 129, 380, 87, 140, 339, 322, 241
   few_shot: False
   aug_train_num: 1_000
   num_func: 4
@@ -229,8 +231,11 @@ diagonal_arc:
   train_ratio: 3200
   max_trial: 3
   oracle_reward: True 
-  pretrain_model: "pretrain_model/179_best.pt"
+  pretrain_model: ""
   use_image: False
+  use_example: False
+  RQ4_eval_mode: 'A'
+  max_grid_size: 10
 
 bbox-diagonal_arc:
   envs: 1 # 이것도 병렬로 처리해주는 것 같은 느낌. 그러나 parallel이랑 조금 다름. 자세한 것 좀더 조사해봐야 함.
