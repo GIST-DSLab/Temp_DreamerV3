@@ -836,10 +836,10 @@ class DiagonalARCEnv(AbstractARCEnv):
         else:
             if self.acc_flag:
                 if self.use_example:
-                        self.example_input = self.eval_list['example'][0][self.eval_count]
-                        self.example_output = self.eval_list['example'][1][self.eval_count]
-                        self.input_ = self.eval_list['grid'][self.eval_count] # ex_in
-                        self.answer = self.eval_list['answer'][self.eval_count] # ex_out
+                    self.example_input = self.eval_list['example'][0][self.eval_count*3:(self.eval_count+1)*3]
+                    self.example_output = self.eval_list['example'][1][self.eval_count*3:(self.eval_count+1)*3]
+                    self.input_ = self.eval_list['grid'][self.eval_count] # ex_in
+                    self.answer = self.eval_list['answer'][self.eval_count] # ex_out
                 else:
                     self.input_ = self.eval_list[0][self.eval_count]
                     self.answer = self.eval_list[1][self.eval_count]
@@ -926,6 +926,8 @@ class DiagonalARCEnv(AbstractARCEnv):
         if self.use_example:
             image_example_input = []
             image_example_output = []
+            
+            # TODO 추후에 example pair의 grid 사이즈가 동일하지 않을 수 있으므로 아래의 코드를 수정해서 확장하기 - evaluation일때만 고치면 됨.
             for example_input ,example_output in zip(self.example_input, self.example_output):
                 input_bottom_pad_size = self.max_grid_size[0] - torch.tensor(example_input).shape[0]
                 input_right_pad_size = self.max_grid_size[1] - torch.tensor(example_input).shape[1] 
