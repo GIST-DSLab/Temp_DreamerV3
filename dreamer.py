@@ -85,7 +85,6 @@ class Dreamer(nn.Module):
         if training:
             self._step += len(reset)
             self._logger.step = self._config.action_repeat * self._step
-        # TODO policy_output이 이산적으로 나와야하는데 그렇지 않음 - 해당 문제 고치기
         return policy_output, state
 
     def _policy(self, obs, state, training):
@@ -301,12 +300,14 @@ def main(config):
     eval_eps = tools.load_episodes(directory, limit=1)
     make = lambda mode, id: make_env(config, mode, id)
     train_envs = [make("train", i) for i in range(config.envs)]
+    valid_envs = [make("val", i) for i in range(config.envs)]
     eval_envs = [make("eval", i) for i in range(config.envs)]
     if config.parallel:
         train_envs = [Parallel(env, "process") for env in train_envs]
         eval_envs = [Parallel(env, "process") for env in eval_envs]
     else:
         train_envs = [Damy(env) for env in train_envs]
+        valid_envs = [Damy(env) for env in valid_envs]
         eval_envs = [Damy(env) for env in eval_envs]
     acts = train_envs[0].action_space
     print("Action Space", acts)
@@ -395,6 +396,7 @@ def main(config):
 
     print("Simulate agent.")
     train_dataset = make_dataset(train_eps, config) # -> next(train_dataset) -> (batch_size, batch_length) -> (batch, time)
+    valid_dataset = make_dataset(train_eps, config)
     eval_dataset = make_dataset(eval_eps, config)
     agent = Dreamer(
         train_envs[0].observation_space,
@@ -425,6 +427,23 @@ def main(config):
     while agent._step < config.steps + config.eval_every + config.prefill:
         logger.write()
         if config.eval_episode_num > 0:
+            # TODO Validation 하는 부분 코드 작성하기
+            # print("Start validation.")
+            # valid_policy = functools.partial(agent, training=False)
+            # valid_result = tools.simulate(
+            #     valid_policy,
+            #     valid_envs,
+            #     train_eps, # TODO [고민하기] 일단은 validation시 train중 일부의 데이터셋만을 사용하니까 이와 같이 함.
+            #     config.evaldir,
+            #     logger,
+            #     is_eval=True,
+            #     episodes=config.eval_episode_num,
+            #     option = {'adaptation': False},
+            #     use_bbox=True if config.use_bbox else False,
+            #     config=config,
+            # )
+            
+
             print("Start evaluation.")
             eval_policy = functools.partial(agent, training=False)
             result = tools.simulate(

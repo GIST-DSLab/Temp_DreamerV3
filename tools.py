@@ -166,6 +166,7 @@ def simulate(
         reward = [0] * len(envs)
     else:
         step, episode, done, length, obs, agent_state, reward, _ = state
+    # TODO validation시 episodes의 수가 이때까지 train한 데이터의  개수가 되는데 그것을 어떻게 가져와야 될지 고민하기.
     while (steps and step < steps) or (episodes and episode < episodes):
         # reset envs if necessary
         if done.any():
@@ -283,7 +284,8 @@ def simulate(
             transition["reward"] = r
             transition["discount"] = info.get("discount", np.array(1 - float(d)))
             add_to_cache(cache, env.id, transition)
-
+        
+        # TODO [고민하기] validation시 log 기록을 evaluation loop랑 비슷하게 하되 prefix만 바꾸게끔 코드 수정하기.
         if done.any():
             indices = [index for index, d in enumerate(done) if d]
             # logging for done episode
