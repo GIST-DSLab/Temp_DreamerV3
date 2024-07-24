@@ -536,6 +536,7 @@ class DiagonalARCEnv(AbstractARCEnv):
         self.dataset_dir = config.dataset_dir
         self.use_example = config.use_example
         self.RQ4_eval_mode = config.RQ4_eval_mode
+        self.train_index_set = set()
 
         # self.epiosde_index = 0 # 0: 'rotate_left', 1: 'rotate_right', 2: 'horizental_flip', 3: 'vertical_flip'
         # self.count_action_case = {i+' '+j: 0 for i in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip'] for j in ['rotate_left','rotate_right', 'horizental_flip','vertical_flip']}
@@ -810,6 +811,7 @@ class DiagonalARCEnv(AbstractARCEnv):
 
         ex_in, ex_out, tt_in, tt_out, desc = self.loader.pick(data_index=self.prob_index)
 
+        # TODO [고민하기] 현재 self.adaptation을 통해서 train시점과 eval시점을 env환경이 구별해주는데 validation은 어떻게 구별해주면 좋을지 생각하기.
         if self.adaptation:
             if self.few_shot:
                 self.subprob_index = np.random.randint(0,len(ex_in)) if self.subprob_index is None else self.subprob_index
@@ -830,13 +832,14 @@ class DiagonalARCEnv(AbstractARCEnv):
                         self.answer = self.train_list[1][self.train_count] # ex_out
 
                     self.train_count = 0 if (self.train_count+1) % self.aug_train_num == 0 else self.train_count+1
+                    self.train_index_set.add(self.train_count)
         else:
             if self.acc_flag:
                 if self.use_example:
-                        self.example_input = self.train_list['example'][0][self.eval_count]
-                        self.example_output = self.train_list['example'][1][self.eval_count]
-                        self.input_ = self.train_list['grid'][self.eval_count] # ex_in
-                        self.answer = self.train_list['answer'][self.eval_count] # ex_out
+                        self.example_input = self.eval_list['example'][0][self.eval_count]
+                        self.example_output = self.eval_list['example'][1][self.eval_count]
+                        self.input_ = self.eval_list['grid'][self.eval_count] # ex_in
+                        self.answer = self.eval_list['answer'][self.eval_count] # ex_out
                 else:
                     self.input_ = self.eval_list[0][self.eval_count]
                     self.answer = self.eval_list[1][self.eval_count]
